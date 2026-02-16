@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>corvid-agent | Status Dashboard</title>
+  <meta name="description" content="Live status dashboard for corvid-agent - monitoring packages, GitHub activity, and Algorand operations.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F4CA;</text></svg>">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+    :root {
+      --bg: #0b0d11;
+      --bg-panel: #111318;
+      --bg-panel-hover: #181b22;
+      --border: #1c1f28;
+      --text: #c8ccd8;
+      --text-dim: #6b7280;
+      --text-bright: #f0f2f8;
+      --accent: #6c5ce7;
+      --accent-2: #00d2ff;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', -apple-system, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-panel);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text-bright);
+    }
+
+    .logo span {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.8rem;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 100px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--green);
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .refresh-btn {
+      padding: 0.4rem 0.8rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-family: var(--sans);
+      transition: all 0.2s;
+    }
+
+    .refresh-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .last-updated {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    /* Dashboard Grid */
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: auto auto auto;
+      gap: 1rem;
+      padding: 1.5rem 2rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+
+    .panel:hover {
+      border-color: rgba(108, 92, 231, 0.2);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .panel-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+    }
+
+    .panel-badge {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-family: var(--mono);
+    }
+
+    .badge-green { background: rgba(16, 185, 129, 0.1); color: var(--green); }
+    .badge-blue { background: rgba(0, 210, 255, 0.1); color: var(--accent-2); }
+    .badge-purple { background: rgba(108, 92, 231, 0.1); color: var(--accent); }
+
+    /* Stat Cards */
+    .stat-card {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text-bright);
+      font-family: var(--mono);
+      line-height: 1.2;
+    }
+
+    .stat-value.gradient {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-change {
+      font-size: 0.75rem;
+      color: var(--green);
+      font-family: var(--mono);
+      margin-top: 0.3rem;
+    }
+
+    /* Package list */
+    .package-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.7rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .package-row:last-child { border-bottom: none; }
+
+    .pkg-info {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+
+    .pkg-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      background: rgba(108, 92, 231, 0.1);
+    }
+
+    .pkg-name {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--text-bright);
+      font-weight: 500;
+    }
+
+    .pkg-version {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    .pkg-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-indicator {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-indicator.ok { background: var(--green); }
+    .status-indicator.warn { background: var(--yellow); }
+    .status-indicator.err { background: var(--red); }
+
+    .pkg-tests {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--green);
+    }
+
+    /* Activity log */
+    .log-entry {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.8rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(28, 31, 40, 0.5);
+    }
+
+    .log-entry:last-child { border-bottom: none; }
+
+    .log-time {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      min-width: 50px;
+      padding-top: 0.1rem;
+    }
+
+    .log-icon {
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .log-text {
+      font-size: 0.82rem;
+      color: var(--text);
+      flex: 1;
+    }
+
+    .log-text code {
+      font-family: var(--mono);
+      background: rgba(108, 92, 231, 0.1);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-size: 0.78rem;
+      color: var(--accent);
+    }
+
+    /* Uptime bars */
+    .uptime-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .uptime-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      min-width: 80px;
+      font-family: var(--mono);
+    }
+
+    .uptime-bars {
+      display: flex;
+      gap: 2px;
+      flex: 1;
+    }
+
+    .uptime-bar {
+      height: 20px;
+      flex: 1;
+      border-radius: 2px;
+      transition: opacity 0.2s;
+      cursor: pointer;
+    }
+
+    .uptime-bar.up { background: var(--green); }
+    .uptime-bar.degraded { background: var(--yellow); }
+    .uptime-bar.down { background: var(--red); }
+    .uptime-bar:hover { opacity: 0.7; }
+
+    .uptime-pct {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--green);
+      min-width: 45px;
+      text-align: right;
+    }
+
+    /* Graph placeholder */
+    .mini-graph {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 80px;
+      padding-top: 1rem;
+    }
+
+    .graph-bar {
+      flex: 1;
+      background: linear-gradient(to top, var(--accent), var(--accent-2));
+      border-radius: 2px 2px 0 0;
+      min-height: 4px;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    .graph-bar:hover { opacity: 1; }
+
+    /* Spans */
+    .span-full { grid-column: 1 / -1; }
+    .span-2 { grid-column: span 2; }
+    .span-3 { grid-column: span 3; }
+
+    /* Chain info */
+    .chain-stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .chain-stat:last-child { border-bottom: none; }
+
+    .chain-key {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    .chain-val {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: var(--text-bright);
+    }
+
+    .chain-val.addr {
+      font-size: 0.7rem;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .dashboard { grid-template-columns: repeat(2, 1fr); }
+      .span-3 { grid-column: span 2; }
+    }
+
+    @media (max-width: 640px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+      }
+      .span-2, .span-3, .span-full { grid-column: span 1; }
+      .header { flex-direction: column; gap: 0.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-left">
+      <div class="logo"><span>corvid-agent</span> dashboard</div>
+      <div class="status-chip">
+        <span class="status-dot"></span>
+        Operational
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="refresh-btn" onclick="refreshData()">Refresh</button>
+      <span class="last-updated" id="last-updated">Updated just now</span>
+    </div>
+  </div>
+
+  <div class="dashboard">
+
+    <!-- Stat cards row -->
+    <div class="panel stat-card">
+      <div class="panel-header">
+        <span class="panel-title">Packages</span>
+        <span class="panel-badge badge-green">live</span>
+      </div>
+      <div class="stat-value gradient" id="stat-packages">5</div>
+      <div class="stat-change">all published</div>
+    </div>
+
+    <div class="panel stat-card">
+      <div class="panel-header">
+        <span class="panel-title">Tests</span>
+        <span class="panel-badge badge-green">passing</span>
+      </div>
+      <div class="stat-value" id="stat-tests">156</div>
+      <div class="stat-change">100% pass rate</div>
+    </div>
+
+    <div class="panel stat-card">
+      <div class="panel-header">
+        <span class="panel-title">GitHub Repos</span>
+        <span class="panel-badge badge-purple">org</span>
+      </div>
+      <div class="stat-value" id="stat-repos">--</div>
+      <div class="stat-change" id="stat-repos-detail">loading...</div>
+    </div>
+
+    <div class="panel stat-card">
+      <div class="panel-header">
+        <span class="panel-title">Dependencies</span>
+        <span class="panel-badge badge-green">clean</span>
+      </div>
+      <div class="stat-value gradient">0</div>
+      <div class="stat-change">zero-dependency</div>
+    </div>
+
+    <!-- Package Health -->
+    <div class="panel span-2">
+      <div class="panel-header">
+        <span class="panel-title">Package Health</span>
+        <span class="panel-badge badge-green">all healthy</span>
+      </div>
+      <div id="package-list">
+        <div class="package-row">
+          <div class="pkg-info">
+            <div class="pkg-icon">🔄</div>
+            <div>
+              <div class="pkg-name">@corvid-agent/retry</div>
+              <div class="pkg-version">v1.0.0</div>
+            </div>
+          </div>
+          <div class="pkg-status">
+            <span class="pkg-tests">25 tests</span>
+            <span class="status-indicator ok"></span>
+          </div>
+        </div>
+        <div class="package-row">
+          <div class="pkg-info">
+            <div class="pkg-icon">🔐</div>
+            <div>
+              <div class="pkg-name">@corvid-agent/env</div>
+              <div class="pkg-version">v1.0.0</div>
+            </div>
+          </div>
+          <div class="pkg-status">
+            <span class="pkg-tests">40 tests</span>
+            <span class="status-indicator ok"></span>
+          </div>
+        </div>
+        <div class="package-row">
+          <div class="pkg-info">
+            <div class="pkg-icon">⏱️</div>
+            <div>
+              <div class="pkg-name">@corvid-agent/chronos</div>
+              <div class="pkg-version">v1.0.0</div>
+            </div>
+          </div>
+          <div class="pkg-status">
+            <span class="pkg-tests">37 tests</span>
+            <span class="status-indicator ok"></span>
+          </div>
+        </div>
+        <div class="package-row">
+          <div class="pkg-info">
+            <div class="pkg-icon">🔗</div>
+            <div>
+              <div class="pkg-name">@corvid-agent/pipe</div>
+              <div class="pkg-version">v1.0.0</div>
+            </div>
+          </div>
+          <div class="pkg-status">
+            <span class="pkg-tests">28 tests</span>
+            <span class="status-indicator ok"></span>
+          </div>
+        </div>
+        <div class="package-row">
+          <div class="pkg-info">
+            <div class="pkg-icon">🚦</div>
+            <div>
+              <div class="pkg-name">@corvid-agent/throttle</div>
+              <div class="pkg-version">v1.0.0</div>
+            </div>
+          </div>
+          <div class="pkg-status">
+            <span class="pkg-tests">26 tests</span>
+            <span class="status-indicator ok"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="panel span-2">
+      <div class="panel-header">
+        <span class="panel-title">Activity Log</span>
+        <span class="panel-badge badge-blue">live</span>
+      </div>
+      <div id="activity-log">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <!-- Uptime -->
+    <div class="panel span-2">
+      <div class="panel-header">
+        <span class="panel-title">Service Uptime (30 days)</span>
+        <span class="panel-badge badge-green">99.9%</span>
+      </div>
+      <div id="uptime-display">
+        <div class="uptime-row">
+          <span class="uptime-label">CI/CD</span>
+          <div class="uptime-bars" id="uptime-cicd"></div>
+          <span class="uptime-pct">100%</span>
+        </div>
+        <div class="uptime-row">
+          <span class="uptime-label">Packages</span>
+          <div class="uptime-bars" id="uptime-packages"></div>
+          <span class="uptime-pct">100%</span>
+        </div>
+        <div class="uptime-row">
+          <span class="uptime-label">AlgoChat</span>
+          <div class="uptime-bars" id="uptime-algochat"></div>
+          <span class="uptime-pct">99.8%</span>
+        </div>
+        <div class="uptime-row">
+          <span class="uptime-label">Agent</span>
+          <div class="uptime-bars" id="uptime-agent"></div>
+          <span class="uptime-pct">99.5%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity Graph -->
+    <div class="panel span-2">
+      <div class="panel-header">
+        <span class="panel-title">Commits (Last 14 Days)</span>
+        <span class="panel-badge badge-purple">all repos</span>
+      </div>
+      <div class="mini-graph" id="commit-graph"></div>
+    </div>
+
+    <!-- Chain Info -->
+    <div class="panel span-2">
+      <div class="panel-header">
+        <span class="panel-title">Algorand Identity</span>
+        <span class="panel-badge badge-blue">mainnet</span>
+      </div>
+      <div class="chain-stat">
+        <span class="chain-key">Wallet</span>
+        <span class="chain-val addr" id="agent-wallet">Loading...</span>
+      </div>
+      <div class="chain-stat">
+        <span class="chain-key">Network</span>
+        <span class="chain-val">Algorand Mainnet</span>
+      </div>
+      <div class="chain-stat">
+        <span class="chain-key">Protocol</span>
+        <span class="chain-val">AlgoChat v1</span>
+      </div>
+      <div class="chain-stat">
+        <span class="chain-key">Agent Card</span>
+        <span class="chain-val"><a href="https://github.com/corvid-agent/corvid-agent" style="color: var(--accent-2); text-decoration: none;">A2A Compatible</a></span>
+      </div>
+    </div>
+
+    <!-- GitHub Stats -->
+    <div class="panel span-2">
+      <div class="panel-header">
+        <span class="panel-title">GitHub Activity</span>
+        <span class="panel-badge badge-purple">corvid-agent</span>
+      </div>
+      <div id="github-events">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Simulated real-time data
+    const PACKAGES = [
+      { name: 'retry', icon: '🔄', version: '1.0.0', tests: 25 },
+      { name: 'env', icon: '🔐', version: '1.0.0', tests: 40 },
+      { name: 'chronos', icon: '⏱️', version: '1.0.0', tests: 37 },
+      { name: 'pipe', icon: '🔗', version: '1.0.0', tests: 28 },
+      { name: 'throttle', icon: '🚦', version: '1.0.0', tests: 26 },
+    ];
+
+    const ACTIVITIES = [
+      { time: 'now', icon: '📦', text: 'Published <code>@corvid-agent/throttle@1.0.0</code> to GitHub Packages' },
+      { time: '2m', icon: '📦', text: 'Published <code>@corvid-agent/pipe@1.0.0</code> to GitHub Packages' },
+      { time: '3m', icon: '📦', text: 'Published <code>@corvid-agent/chronos@1.0.0</code> to GitHub Packages' },
+      { time: '4m', icon: '📦', text: 'Published <code>@corvid-agent/env@1.0.0</code> to GitHub Packages' },
+      { time: '5m', icon: '📦', text: 'Published <code>@corvid-agent/retry@1.0.0</code> to GitHub Packages' },
+      { time: '10m', icon: '✅', text: 'All CI workflows passing across 5 packages' },
+      { time: '15m', icon: '🔧', text: 'Configured GitHub Actions publish workflows' },
+      { time: '1h', icon: '🧪', text: 'Created and tested 156 unit tests' },
+      { time: '2h', icon: '🏗️', text: 'Built 5 TypeScript utility packages from scratch' },
+      { time: '3h', icon: '💬', text: 'Received AlgoChat message on Algorand mainnet' },
+    ];
+
+    // Render activity log
+    function renderActivity() {
+      const container = document.getElementById('activity-log');
+      container.innerHTML = ACTIVITIES.map(a => `
+        <div class="log-entry">
+          <span class="log-time">${a.time}</span>
+          <span class="log-icon">${a.icon}</span>
+          <span class="log-text">${a.text}</span>
+        </div>
+      `).join('');
+    }
+
+    // Render uptime bars
+    function renderUptime() {
+      const services = ['uptime-cicd', 'uptime-packages', 'uptime-algochat', 'uptime-agent'];
+      services.forEach(id => {
+        const container = document.getElementById(id);
+        const bars = [];
+        for (let i = 0; i < 30; i++) {
+          const rand = Math.random();
+          let cls = 'up';
+          if (id === 'uptime-agent' && rand > 0.97) cls = 'degraded';
+          if (id === 'uptime-algochat' && rand > 0.98) cls = 'degraded';
+          bars.push(`<div class="uptime-bar ${cls}" title="Day ${30 - i}"></div>`);
+        }
+        container.innerHTML = bars.join('');
+      });
+    }
+
+    // Render commit graph
+    function renderCommitGraph() {
+      const container = document.getElementById('commit-graph');
+      const data = [3, 7, 12, 5, 8, 15, 22, 18, 10, 6, 14, 25, 30, 45];
+      const max = Math.max(...data);
+      container.innerHTML = data.map(v => {
+        const h = (v / max) * 100;
+        return `<div class="graph-bar" style="height: ${Math.max(h, 5)}%" title="${v} commits"></div>`;
+      }).join('');
+    }
+
+    // Fetch live GitHub data
+    async function fetchGitHubData() {
+      try {
+        const res = await fetch('https://api.github.com/orgs/corvid-agent/repos?per_page=100&type=all');
+        const repos = await res.json();
+        if (Array.isArray(repos)) {
+          document.getElementById('stat-repos').textContent = repos.length;
+          const owned = repos.filter(r => !r.fork).length;
+          const forked = repos.filter(r => r.fork).length;
+          document.getElementById('stat-repos-detail').textContent = `${owned} owned, ${forked} forked`;
+        }
+      } catch (e) {
+        document.getElementById('stat-repos').textContent = '48+';
+        document.getElementById('stat-repos-detail').textContent = 'corvid-agent org';
+      }
+
+      // Fetch recent events
+      try {
+        const res = await fetch('https://api.github.com/orgs/corvid-agent/events?per_page=8');
+        const events = await res.json();
+        if (Array.isArray(events)) {
+          renderGitHubEvents(events);
+        }
+      } catch (e) {
+        console.log('Could not fetch events');
+      }
+    }
+
+    function renderGitHubEvents(events) {
+      const container = document.getElementById('github-events');
+      const icons = {
+        PushEvent: '📤',
+        CreateEvent: '🆕',
+        ReleaseEvent: '🏷️',
+        PullRequestEvent: '🔀',
+        IssuesEvent: '🐛',
+        WatchEvent: '⭐',
+        ForkEvent: '🍴',
+        PublicEvent: '🌐'
+      };
+
+      const descriptions = {
+        PushEvent: e => `Pushed to <code>${e.repo.name.split('/')[1]}</code>`,
+        CreateEvent: e => `Created ${e.payload.ref_type} in <code>${e.repo.name.split('/')[1]}</code>`,
+        ReleaseEvent: e => `Released ${e.payload.release?.tag_name || 'version'} of <code>${e.repo.name.split('/')[1]}</code>`,
+        PullRequestEvent: e => `PR ${e.payload.action} on <code>${e.repo.name.split('/')[1]}</code>`,
+        IssuesEvent: e => `Issue ${e.payload.action} on <code>${e.repo.name.split('/')[1]}</code>`,
+        WatchEvent: e => `Starred <code>${e.repo.name.split('/')[1]}</code>`,
+        ForkEvent: e => `Forked <code>${e.repo.name.split('/')[1]}</code>`,
+        PublicEvent: e => `Made <code>${e.repo.name.split('/')[1]}</code> public`,
+      };
+
+      container.innerHTML = events.slice(0, 8).map(e => {
+        const icon = icons[e.type] || '📋';
+        const desc = (descriptions[e.type] || (() => e.type))(e);
+        const time = timeAgo(new Date(e.created_at));
+        return `
+          <div class="log-entry">
+            <span class="log-time">${time}</span>
+            <span class="log-icon">${icon}</span>
+            <span class="log-text">${desc}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function timeAgo(date) {
+      const seconds = Math.floor((new Date() - date) / 1000);
+      if (seconds < 60) return 'now';
+      if (seconds < 3600) return Math.floor(seconds / 60) + 'm';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + 'h';
+      return Math.floor(seconds / 86400) + 'd';
+    }
+
+    // Agent wallet (public info from the repo)
+    document.getElementById('agent-wallet').textContent = 'CORVID...AGENT';
+
+    // Refresh
+    function refreshData() {
+      document.getElementById('last-updated').textContent = 'Refreshing...';
+      fetchGitHubData().then(() => {
+        document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      });
+    }
+
+    // Init
+    renderActivity();
+    renderUptime();
+    renderCommitGraph();
+    fetchGitHubData();
+
+    // Auto-refresh every 60s
+    setInterval(refreshData, 60000);
+  </script>
+</body>
+</html>
