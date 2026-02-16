@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>corvid-agent | Status Dashboard</title>
-  <meta name="description" content="Live status dashboard for corvid-agent - monitoring packages, GitHub activity, and Algorand operations.">
+  <meta name="description" content="Live status dashboard for corvid-agent - monitoring packages, GitHub activity, Algorand wallet, and network stats.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F4CA;</text></svg>">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
@@ -27,6 +27,7 @@
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
       font-family: var(--sans);
       background: var(--bg);
@@ -35,20 +36,26 @@
       min-height: 100vh;
     }
 
-    /* Header */
+    a { color: var(--accent-2); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: var(--accent); }
+
+    /* ── Header ── */
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 1rem 2rem;
+      padding: 0.8rem 2rem;
       border-bottom: 1px solid var(--border);
       background: var(--bg-panel);
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
 
     .header-left {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 1.2rem;
     }
 
     .logo {
@@ -62,6 +69,39 @@
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .nav-links a {
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      transition: all 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-bright);
+      background: rgba(108, 92, 231, 0.1);
+    }
+
+    .nav-links a.active {
+      color: var(--accent-2);
+      background: rgba(0, 210, 255, 0.08);
+    }
+
+    .nav-links a svg {
+      width: 14px;
+      height: 14px;
+      vertical-align: -2px;
+      margin-right: 4px;
     }
 
     .status-chip {
@@ -72,7 +112,7 @@
       background: rgba(16, 185, 129, 0.1);
       border: 1px solid rgba(16, 185, 129, 0.2);
       border-radius: 100px;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 600;
       color: var(--green);
     }
@@ -105,6 +145,9 @@
       cursor: pointer;
       font-family: var(--sans);
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
     }
 
     .refresh-btn:hover {
@@ -112,20 +155,50 @@
       color: var(--text);
     }
 
+    .refresh-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
     .last-updated {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--text-dim);
       font-family: var(--mono);
     }
 
-    /* Dashboard Grid */
+    /* ── Auto-refresh progress bar ── */
+    .refresh-progress-track {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      z-index: 200;
+      background: rgba(28, 31, 40, 0.5);
+    }
+
+    .refresh-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 1s linear;
+      border-radius: 0 2px 2px 0;
+      box-shadow: 0 0 8px rgba(108, 92, 231, 0.4);
+    }
+
+    /* ── Dashboard Grid ── */
     .dashboard {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: auto auto auto;
+      grid-template-areas:
+        "stat1    stat2    stat3    stat4"
+        "packages packages activity activity"
+        "uptime   uptime   commits  commits"
+        "wallet   wallet   network  network"
+        "repos    repos    repos    repos";
       gap: 1rem;
       padding: 1.5rem 2rem;
-      max-width: 1400px;
+      max-width: 1440px;
       margin: 0 auto;
     }
 
@@ -134,11 +207,11 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 1.5rem;
-      transition: border-color 0.2s;
+      transition: border-color 0.3s;
     }
 
     .panel:hover {
-      border-color: rgba(108, 92, 231, 0.2);
+      border-color: rgba(108, 92, 231, 0.25);
     }
 
     .panel-header {
@@ -149,31 +222,44 @@
     }
 
     .panel-title {
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       color: var(--text-dim);
     }
 
     .panel-badge {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       padding: 0.15rem 0.5rem;
       border-radius: 4px;
       font-family: var(--mono);
+      font-weight: 500;
     }
 
-    .badge-green { background: rgba(16, 185, 129, 0.1); color: var(--green); }
-    .badge-blue { background: rgba(0, 210, 255, 0.1); color: var(--accent-2); }
-    .badge-purple { background: rgba(108, 92, 231, 0.1); color: var(--accent); }
+    .badge-green  { background: rgba(16, 185, 129, 0.1);  color: var(--green); }
+    .badge-blue   { background: rgba(0, 210, 255, 0.1);   color: var(--accent-2); }
+    .badge-purple { background: rgba(108, 92, 231, 0.1);  color: var(--accent); }
+    .badge-yellow { background: rgba(245, 158, 11, 0.1);  color: var(--yellow); }
 
-    /* Stat Cards */
-    .stat-card {
-      text-align: center;
-    }
+    /* Grid area assignments */
+    .area-stat1    { grid-area: stat1; }
+    .area-stat2    { grid-area: stat2; }
+    .area-stat3    { grid-area: stat3; }
+    .area-stat4    { grid-area: stat4; }
+    .area-packages { grid-area: packages; }
+    .area-activity { grid-area: activity; }
+    .area-uptime   { grid-area: uptime; }
+    .area-commits  { grid-area: commits; }
+    .area-wallet   { grid-area: wallet; }
+    .area-network  { grid-area: network; }
+    .area-repos    { grid-area: repos; }
+
+    /* ── Stat Cards ── */
+    .stat-card { text-align: center; }
 
     .stat-value {
-      font-size: 2.2rem;
+      font-size: 2rem;
       font-weight: 700;
       color: var(--text-bright);
       font-family: var(--mono);
@@ -184,21 +270,24 @@
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
     .stat-change {
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       color: var(--green);
       font-family: var(--mono);
       margin-top: 0.3rem;
     }
 
-    /* Package list */
+    .stat-change.dim { color: var(--text-dim); }
+
+    /* ── Package list ── */
     .package-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0.7rem 0;
+      padding: 0.65rem 0;
       border-bottom: 1px solid var(--border);
     }
 
@@ -222,14 +311,14 @@
 
     .pkg-name {
       font-family: var(--mono);
-      font-size: 0.85rem;
+      font-size: 0.83rem;
       color: var(--text-bright);
       font-weight: 500;
     }
 
     .pkg-version {
       font-family: var(--mono);
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--text-dim);
     }
 
@@ -244,22 +333,22 @@
       border-radius: 50%;
     }
 
-    .status-indicator.ok { background: var(--green); }
+    .status-indicator.ok   { background: var(--green); }
     .status-indicator.warn { background: var(--yellow); }
-    .status-indicator.err { background: var(--red); }
+    .status-indicator.err  { background: var(--red); }
 
     .pkg-tests {
       font-family: var(--mono);
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       color: var(--green);
     }
 
-    /* Activity log */
+    /* ── Activity / log entries ── */
     .log-entry {
       display: flex;
       align-items: flex-start;
-      gap: 0.8rem;
-      padding: 0.6rem 0;
+      gap: 0.7rem;
+      padding: 0.55rem 0;
       border-bottom: 1px solid rgba(28, 31, 40, 0.5);
     }
 
@@ -267,43 +356,68 @@
 
     .log-time {
       font-family: var(--mono);
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       color: var(--text-dim);
       white-space: nowrap;
-      min-width: 50px;
-      padding-top: 0.1rem;
+      min-width: 44px;
+      padding-top: 0.15rem;
     }
 
     .log-icon {
-      font-size: 0.9rem;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       flex-shrink: 0;
+      font-size: 0.75rem;
     }
 
+    .log-icon.push   { background: rgba(108, 92, 231, 0.15); color: var(--accent); }
+    .log-icon.create  { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+    .log-icon.pr      { background: rgba(0, 210, 255, 0.15); color: var(--accent-2); }
+    .log-icon.release { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+    .log-icon.issue   { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .log-icon.star    { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+    .log-icon.fork    { background: rgba(108, 92, 231, 0.15); color: var(--accent); }
+    .log-icon.other   { background: rgba(107, 114, 128, 0.15); color: var(--text-dim); }
+    .log-icon.delete  { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    .log-icon.member  { background: rgba(0, 210, 255, 0.15); color: var(--accent-2); }
+
     .log-text {
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: var(--text);
       flex: 1;
+      line-height: 1.45;
     }
 
     .log-text code {
       font-family: var(--mono);
       background: rgba(108, 92, 231, 0.1);
-      padding: 0.1rem 0.3rem;
+      padding: 0.1rem 0.35rem;
       border-radius: 3px;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       color: var(--accent);
     }
 
-    /* Uptime bars */
+    .log-text a {
+      color: var(--accent-2);
+      text-decoration: none;
+    }
+
+    .log-text a:hover { text-decoration: underline; }
+
+    /* ── Uptime bars ── */
     .uptime-row {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      margin-bottom: 0.6rem;
+      margin-bottom: 0.55rem;
     }
 
     .uptime-label {
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       color: var(--text-dim);
       min-width: 80px;
       font-family: var(--mono);
@@ -321,111 +435,338 @@
       border-radius: 2px;
       transition: opacity 0.2s;
       cursor: pointer;
+      position: relative;
     }
 
-    .uptime-bar.up { background: var(--green); }
+    .uptime-bar.up       { background: var(--green); }
     .uptime-bar.degraded { background: var(--yellow); }
-    .uptime-bar.down { background: var(--red); }
-    .uptime-bar:hover { opacity: 0.7; }
+    .uptime-bar.down     { background: var(--red); }
+    .uptime-bar:hover    { opacity: 0.7; }
 
     .uptime-pct {
       font-family: var(--mono);
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       color: var(--green);
       min-width: 45px;
       text-align: right;
     }
 
-    /* Graph placeholder */
-    .mini-graph {
+    /* ── SVG Contribution Graph ── */
+    .contribution-graph {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .contribution-graph svg {
+      display: block;
+    }
+
+    .contrib-tooltip {
+      position: fixed;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--text-bright);
+      pointer-events: none;
+      z-index: 300;
+      white-space: nowrap;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    .graph-legend {
       display: flex;
-      align-items: flex-end;
-      gap: 3px;
-      height: 80px;
-      padding-top: 1rem;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 0.6rem;
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
     }
 
-    .graph-bar {
-      flex: 1;
-      background: linear-gradient(to top, var(--accent), var(--accent-2));
-      border-radius: 2px 2px 0 0;
-      min-height: 4px;
-      opacity: 0.8;
-      transition: opacity 0.2s;
+    .graph-legend .swatch {
+      width: 11px; height: 11px;
+      border-radius: 2px;
     }
 
-    .graph-bar:hover { opacity: 1; }
-
-    /* Spans */
-    .span-full { grid-column: 1 / -1; }
-    .span-2 { grid-column: span 2; }
-    .span-3 { grid-column: span 3; }
-
-    /* Chain info */
+    /* ── Chain / wallet info ── */
     .chain-stat {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.5rem 0;
+      padding: 0.55rem 0;
       border-bottom: 1px solid var(--border);
     }
 
     .chain-stat:last-child { border-bottom: none; }
 
     .chain-key {
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: var(--text-dim);
     }
 
     .chain-val {
       font-family: var(--mono);
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: var(--text-bright);
     }
 
     .chain-val.addr {
-      font-size: 0.7rem;
-      max-width: 200px;
+      font-size: 0.68rem;
+      max-width: 260px;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
-    /* Responsive */
-    @media (max-width: 1024px) {
-      .dashboard { grid-template-columns: repeat(2, 1fr); }
-      .span-3 { grid-column: span 2; }
+    .chain-val.balance {
+      font-size: 1.15rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .chain-val a { color: var(--accent-2); text-decoration: none; }
+    .chain-val a:hover { text-decoration: underline; }
+
+    /* ── Network stats ── */
+    .network-stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .network-stat-item {
+      text-align: center;
+      padding: 0.8rem;
+      background: rgba(108, 92, 231, 0.04);
+      border: 1px solid rgba(28, 31, 40, 0.6);
+      border-radius: 8px;
+    }
+
+    .network-stat-label {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.3rem;
+    }
+
+    .network-stat-value {
+      font-family: var(--mono);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+
+    .network-stat-value.small {
+      font-size: 0.85rem;
+    }
+
+    /* ── Repo Cards ── */
+    .repo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.8rem;
+    }
+
+    .repo-card {
+      background: rgba(17, 19, 24, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      transition: all 0.2s;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+    }
+
+    .repo-card:hover {
+      border-color: rgba(108, 92, 231, 0.3);
+      background: var(--bg-panel-hover);
+      transform: translateY(-1px);
+    }
+
+    .repo-card-name {
+      font-family: var(--mono);
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--accent-2);
+      margin-bottom: 0.35rem;
+    }
+
+    .repo-card-desc {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      line-height: 1.4;
+      margin-bottom: 0.6rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .repo-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    .repo-card-meta .lang-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 3px;
+    }
+
+    .repo-card-meta .star-icon {
+      color: var(--yellow);
+    }
+
+    /* ── Loading / skeleton states ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--bg-panel) 25%, var(--bg-panel-hover) 50%, var(--bg-panel) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+      height: 1em;
+      display: inline-block;
+      width: 80px;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .loading-text {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 2rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 1100px) {
+      .dashboard {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-areas:
+          "stat1    stat2"
+          "stat3    stat4"
+          "packages packages"
+          "activity activity"
+          "uptime   uptime"
+          "commits  commits"
+          "wallet   wallet"
+          "network  network"
+          "repos    repos";
+      }
     }
 
     @media (max-width: 640px) {
       .dashboard {
         grid-template-columns: 1fr;
+        grid-template-areas:
+          "stat1" "stat2" "stat3" "stat4"
+          "packages" "activity" "uptime" "commits"
+          "wallet" "network" "repos";
         padding: 1rem;
       }
-      .span-2, .span-3, .span-full { grid-column: span 1; }
-      .header { flex-direction: column; gap: 0.5rem; }
+
+      .header {
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.8rem 1rem;
+      }
+
+      .header-left {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .header-right {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .repo-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .network-stat-grid {
+        grid-template-columns: 1fr;
+      }
     }
+
+    /* ── Scrollbar styling ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
   </style>
 </head>
 <body>
 
+  <!-- Auto-refresh progress bar -->
+  <div class="refresh-progress-track">
+    <div class="refresh-progress-bar" id="refresh-progress"></div>
+  </div>
+
+  <!-- Contribution tooltip (global, positioned via JS) -->
+  <div class="contrib-tooltip" id="contrib-tooltip"></div>
+
   <div class="header">
     <div class="header-left">
       <div class="logo"><span>corvid-agent</span> dashboard</div>
-      <div class="status-chip">
+      <nav class="nav-links">
+        <a href="https://corvid-agent.github.io" title="Landing Page">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l6-4.5L14 6v7.5a1 1 0 01-1 1H3a1 1 0 01-1-1V6z"/><path d="M6 14.5V8h4v6.5"/></svg>
+          Home
+        </a>
+        <a href="https://github.com/corvid-agent" title="GitHub Org" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+        <a href="https://allo.info/account/YZAKVEGAKEGEBRATG6JU75BOMQDQXLNAJLCBHHMBYHUGEQJG5VXVBYC4OM" title="Algorand Explorer" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 1.5v13M1.5 8h13"/><path d="M2.5 4.5h11M2.5 11.5h11"/></svg>
+          Explorer
+        </a>
+        <a href="#" class="active" title="Dashboard">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="1.5" width="5" height="5" rx="1"/><rect x="9.5" y="1.5" width="5" height="5" rx="1"/><rect x="1.5" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/></svg>
+          Dashboard
+        </a>
+      </nav>
+      <div class="status-chip" id="status-chip">
         <span class="status-dot"></span>
-        Operational
+        <span id="status-text">Connecting...</span>
       </div>
     </div>
     <div class="header-right">
-      <button class="refresh-btn" onclick="refreshData()">Refresh</button>
-      <span class="last-updated" id="last-updated">Updated just now</span>
+      <button class="refresh-btn" onclick="refreshData()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 2v4.5h4.5"/><path d="M2.4 10a5.5 5.5 0 109.2-4.5L6 2"/></svg>
+        Refresh
+      </button>
+      <span class="last-updated" id="last-updated">Loading...</span>
     </div>
   </div>
 
   <div class="dashboard">
 
-    <!-- Stat cards row -->
-    <div class="panel stat-card">
+    <!-- ── Stat Cards Row ── -->
+    <div class="panel stat-card area-stat1">
       <div class="panel-header">
         <span class="panel-title">Packages</span>
         <span class="panel-badge badge-green">live</span>
@@ -434,7 +775,7 @@
       <div class="stat-change">all published</div>
     </div>
 
-    <div class="panel stat-card">
+    <div class="panel stat-card area-stat2">
       <div class="panel-header">
         <span class="panel-title">Tests</span>
         <span class="panel-badge badge-green">passing</span>
@@ -443,26 +784,26 @@
       <div class="stat-change">100% pass rate</div>
     </div>
 
-    <div class="panel stat-card">
+    <div class="panel stat-card area-stat3">
       <div class="panel-header">
         <span class="panel-title">GitHub Repos</span>
         <span class="panel-badge badge-purple">org</span>
       </div>
-      <div class="stat-value" id="stat-repos">--</div>
-      <div class="stat-change" id="stat-repos-detail">loading...</div>
+      <div class="stat-value" id="stat-repos"><span class="skeleton" style="width:40px">&nbsp;</span></div>
+      <div class="stat-change dim" id="stat-repos-detail">loading...</div>
     </div>
 
-    <div class="panel stat-card">
+    <div class="panel stat-card area-stat4">
       <div class="panel-header">
-        <span class="panel-title">Dependencies</span>
-        <span class="panel-badge badge-green">clean</span>
+        <span class="panel-title">ALGO Balance</span>
+        <span class="panel-badge badge-blue">mainnet</span>
       </div>
-      <div class="stat-value gradient">0</div>
-      <div class="stat-change">zero-dependency</div>
+      <div class="stat-value gradient" id="stat-balance"><span class="skeleton" style="width:60px">&nbsp;</span></div>
+      <div class="stat-change dim" id="stat-balance-detail">fetching...</div>
     </div>
 
-    <!-- Package Health -->
-    <div class="panel span-2">
+    <!-- ── Package Health ── -->
+    <div class="panel area-packages">
       <div class="panel-header">
         <span class="panel-title">Package Health</span>
         <span class="panel-badge badge-green">all healthy</span>
@@ -470,7 +811,7 @@
       <div id="package-list">
         <div class="package-row">
           <div class="pkg-info">
-            <div class="pkg-icon">🔄</div>
+            <div class="pkg-icon">&#x1F504;</div>
             <div>
               <div class="pkg-name">@corvid-agent/retry</div>
               <div class="pkg-version">v1.0.0</div>
@@ -483,7 +824,7 @@
         </div>
         <div class="package-row">
           <div class="pkg-info">
-            <div class="pkg-icon">🔐</div>
+            <div class="pkg-icon">&#x1F510;</div>
             <div>
               <div class="pkg-name">@corvid-agent/env</div>
               <div class="pkg-version">v1.0.0</div>
@@ -496,7 +837,7 @@
         </div>
         <div class="package-row">
           <div class="pkg-info">
-            <div class="pkg-icon">⏱️</div>
+            <div class="pkg-icon">&#x23F1;&#xFE0F;</div>
             <div>
               <div class="pkg-name">@corvid-agent/chronos</div>
               <div class="pkg-version">v1.0.0</div>
@@ -509,7 +850,7 @@
         </div>
         <div class="package-row">
           <div class="pkg-info">
-            <div class="pkg-icon">🔗</div>
+            <div class="pkg-icon">&#x1F517;</div>
             <div>
               <div class="pkg-name">@corvid-agent/pipe</div>
               <div class="pkg-version">v1.0.0</div>
@@ -522,7 +863,7 @@
         </div>
         <div class="package-row">
           <div class="pkg-info">
-            <div class="pkg-icon">🚦</div>
+            <div class="pkg-icon">&#x1F6A6;</div>
             <div>
               <div class="pkg-name">@corvid-agent/throttle</div>
               <div class="pkg-version">v1.0.0</div>
@@ -536,19 +877,19 @@
       </div>
     </div>
 
-    <!-- Activity Log -->
-    <div class="panel span-2">
+    <!-- ── Live Activity Stream ── -->
+    <div class="panel area-activity">
       <div class="panel-header">
-        <span class="panel-title">Activity Log</span>
-        <span class="panel-badge badge-blue">live</span>
+        <span class="panel-title">Live Activity</span>
+        <span class="panel-badge badge-blue">github events</span>
       </div>
       <div id="activity-log">
-        <!-- Filled by JS -->
+        <div class="loading-text">Fetching live events...</div>
       </div>
     </div>
 
-    <!-- Uptime -->
-    <div class="panel span-2">
+    <!-- ── Uptime ── -->
+    <div class="panel area-uptime">
       <div class="panel-header">
         <span class="panel-title">Service Uptime (30 days)</span>
         <span class="panel-badge badge-green">99.9%</span>
@@ -577,87 +918,173 @@
       </div>
     </div>
 
-    <!-- Activity Graph -->
-    <div class="panel span-2">
+    <!-- ── SVG Contribution Graph ── -->
+    <div class="panel area-commits">
       <div class="panel-header">
-        <span class="panel-title">Commits (Last 14 Days)</span>
-        <span class="panel-badge badge-purple">all repos</span>
+        <span class="panel-title">Contribution Graph</span>
+        <span class="panel-badge badge-purple" id="commit-count-badge">loading</span>
       </div>
-      <div class="mini-graph" id="commit-graph"></div>
+      <div class="contribution-graph" id="contribution-graph">
+        <div class="loading-text">Building graph...</div>
+      </div>
     </div>
 
-    <!-- Chain Info -->
-    <div class="panel span-2">
+    <!-- ── Agent Wallet & Balance ── -->
+    <div class="panel area-wallet">
       <div class="panel-header">
-        <span class="panel-title">Algorand Identity</span>
-        <span class="panel-badge badge-blue">mainnet</span>
+        <span class="panel-title">Agent Wallet</span>
+        <span class="panel-badge badge-blue">algorand mainnet</span>
       </div>
       <div class="chain-stat">
-        <span class="chain-key">Wallet</span>
-        <span class="chain-val addr" id="agent-wallet">Loading...</span>
+        <span class="chain-key">Address</span>
+        <span class="chain-val addr" id="agent-wallet">
+          <a href="https://allo.info/account/YZAKVEGAKEGEBRATG6JU75BOMQDQXLNAJLCBHHMBYHUGEQJG5VXVBYC4OM" target="_blank" rel="noopener" id="wallet-link">
+            YZAKVE...BYC4OM
+          </a>
+        </span>
       </div>
       <div class="chain-stat">
-        <span class="chain-key">Network</span>
-        <span class="chain-val">Algorand Mainnet</span>
+        <span class="chain-key">Balance</span>
+        <span class="chain-val balance" id="wallet-balance"><span class="skeleton" style="width:80px">&nbsp;</span></span>
+      </div>
+      <div class="chain-stat">
+        <span class="chain-key">Min Balance</span>
+        <span class="chain-val" id="wallet-min-balance"><span class="skeleton" style="width:60px">&nbsp;</span></span>
+      </div>
+      <div class="chain-stat">
+        <span class="chain-key">Total Assets</span>
+        <span class="chain-val" id="wallet-assets"><span class="skeleton" style="width:30px">&nbsp;</span></span>
       </div>
       <div class="chain-stat">
         <span class="chain-key">Protocol</span>
-        <span class="chain-val">AlgoChat v1</span>
-      </div>
-      <div class="chain-stat">
-        <span class="chain-key">Agent Card</span>
-        <span class="chain-val"><a href="https://github.com/corvid-agent/corvid-agent" style="color: var(--accent-2); text-decoration: none;">A2A Compatible</a></span>
+        <span class="chain-val"><a href="https://github.com/corvid-agent/corvid-agent" target="_blank" rel="noopener">AlgoChat v1 / A2A</a></span>
       </div>
     </div>
 
-    <!-- GitHub Stats -->
-    <div class="panel span-2">
+    <!-- ── Network Stats ── -->
+    <div class="panel area-network">
       <div class="panel-header">
-        <span class="panel-title">GitHub Activity</span>
-        <span class="panel-badge badge-purple">corvid-agent</span>
+        <span class="panel-title">Algorand Network</span>
+        <span class="panel-badge badge-green" id="network-badge">connecting</span>
       </div>
-      <div id="github-events">
-        <!-- Filled by JS -->
+      <div class="network-stat-grid" id="network-stats">
+        <div class="network-stat-item">
+          <div class="network-stat-label">Latest Round</div>
+          <div class="network-stat-value" id="net-round"><span class="skeleton" style="width:80px">&nbsp;</span></div>
+        </div>
+        <div class="network-stat-item">
+          <div class="network-stat-label">Round Time</div>
+          <div class="network-stat-value" id="net-round-time"><span class="skeleton" style="width:40px">&nbsp;</span></div>
+        </div>
+        <div class="network-stat-item">
+          <div class="network-stat-label">Catchup Time</div>
+          <div class="network-stat-value" id="net-catchup"><span class="skeleton" style="width:40px">&nbsp;</span></div>
+        </div>
+        <div class="network-stat-item">
+          <div class="network-stat-label">Next Version</div>
+          <div class="network-stat-value small" id="net-version"><span class="skeleton" style="width:80px">&nbsp;</span></div>
+        </div>
       </div>
     </div>
+
+    <!-- ── Repo Cards ── -->
+    <div class="panel area-repos">
+      <div class="panel-header">
+        <span class="panel-title">Organization Repositories</span>
+        <span class="panel-badge badge-purple" id="repo-count-badge">loading</span>
+      </div>
+      <div class="repo-grid" id="repo-grid">
+        <div class="loading-text">Fetching repositories...</div>
+      </div>
+    </div>
+
   </div>
 
   <script>
-    // Simulated real-time data
-    const PACKAGES = [
-      { name: 'retry', icon: '🔄', version: '1.0.0', tests: 25 },
-      { name: 'env', icon: '🔐', version: '1.0.0', tests: 40 },
-      { name: 'chronos', icon: '⏱️', version: '1.0.0', tests: 37 },
-      { name: 'pipe', icon: '🔗', version: '1.0.0', tests: 28 },
-      { name: 'throttle', icon: '🚦', version: '1.0.0', tests: 26 },
-    ];
+    // ── Constants ──
+    const WALLET_ADDRESS = 'YZAKVEGAKEGEBRATG6JU75BOMQDQXLNAJLCBHHMBYHUGEQJG5VXVBYC4OM';
+    const ALGO_API = 'https://mainnet-api.4160.nodely.dev/v2';
+    const GH_ORG = 'corvid-agent';
+    const REFRESH_INTERVAL = 60; // seconds
 
-    const ACTIVITIES = [
-      { time: 'now', icon: '📦', text: 'Published <code>@corvid-agent/throttle@1.0.0</code> to GitHub Packages' },
-      { time: '2m', icon: '📦', text: 'Published <code>@corvid-agent/pipe@1.0.0</code> to GitHub Packages' },
-      { time: '3m', icon: '📦', text: 'Published <code>@corvid-agent/chronos@1.0.0</code> to GitHub Packages' },
-      { time: '4m', icon: '📦', text: 'Published <code>@corvid-agent/env@1.0.0</code> to GitHub Packages' },
-      { time: '5m', icon: '📦', text: 'Published <code>@corvid-agent/retry@1.0.0</code> to GitHub Packages' },
-      { time: '10m', icon: '✅', text: 'All CI workflows passing across 5 packages' },
-      { time: '15m', icon: '🔧', text: 'Configured GitHub Actions publish workflows' },
-      { time: '1h', icon: '🧪', text: 'Created and tested 156 unit tests' },
-      { time: '2h', icon: '🏗️', text: 'Built 5 TypeScript utility packages from scratch' },
-      { time: '3h', icon: '💬', text: 'Received AlgoChat message on Algorand mainnet' },
-    ];
+    // Language colors for repo cards
+    const LANG_COLORS = {
+      TypeScript: '#3178c6', JavaScript: '#f1e05a', Python: '#3572A5',
+      Rust: '#dea584', Go: '#00ADD8', HTML: '#e34c26', CSS: '#563d7c',
+      Shell: '#89e051', Solidity: '#AA6746', Dockerfile: '#384d54',
+      Nix: '#7e7eff', HCL: '#844fba', Batchfile: '#C1F12E',
+      null: '#6b7280', undefined: '#6b7280'
+    };
 
-    // Render activity log
-    function renderActivity() {
-      const container = document.getElementById('activity-log');
-      container.innerHTML = ACTIVITIES.map(a => `
-        <div class="log-entry">
-          <span class="log-time">${a.time}</span>
-          <span class="log-icon">${a.icon}</span>
-          <span class="log-text">${a.text}</span>
-        </div>
-      `).join('');
+    // SVG icon paths for event types
+    const EVENT_ICONS = {
+      PushEvent:        { cls: 'push',   svg: '<path d="M4 12L8 4l4 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="8" y1="4" x2="8" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' },
+      CreateEvent:      { cls: 'create', svg: '<line x1="8" y1="3" x2="8" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' },
+      DeleteEvent:      { cls: 'delete', svg: '<line x1="4" y1="4" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="4" x2="4" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' },
+      PullRequestEvent: { cls: 'pr',     svg: '<circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="11" cy="4" r="1.5" fill="currentColor"/><circle cx="5" cy="12" r="1.5" fill="currentColor"/><line x1="5" y1="5.5" x2="5" y2="10.5" stroke="currentColor" stroke-width="1.5"/><path d="M11 5.5v2c0 1.5-1.5 3-3 3h-1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' },
+      ReleaseEvent:     { cls: 'release', svg: '<path d="M4 2h8l-1 4h3l-7 8 2-5H5l-1-7z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>' },
+      IssuesEvent:      { cls: 'issue',  svg: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="10.5" r="0.8" fill="currentColor"/><line x1="8" y1="5" x2="8" y2="8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' },
+      WatchEvent:       { cls: 'star',   svg: '<path d="M8 1.5l2 4.5 5 .5-3.8 3.3L12.5 15 8 12l-4.5 3 1.3-5.2L1 6.5l5-.5z" fill="currentColor" stroke="none"/>' },
+      ForkEvent:        { cls: 'fork',   svg: '<circle cx="5" cy="3.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="3.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="13" r="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M5 5v1.5c0 2 3 3 3 4.5M11 5v1.5c0 2-3 3-3 4.5" fill="none" stroke="currentColor" stroke-width="1.3"/>' },
+      MemberEvent:      { cls: 'member', svg: '<circle cx="8" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 14c0-3 2.5-5 5-5s5 2 5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' },
+      PublicEvent:      { cls: 'create', svg: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 8h9M8 2.5c-2 2-2 4-2 5.5s0 3.5 2 5.5M8 2.5c2 2 2 4 2 5.5s0 3.5-2 5.5" fill="none" stroke="currentColor" stroke-width="1.2"/>' },
+    };
+
+    // ── State ──
+    let refreshTimer = null;
+    let progressInterval = null;
+    let progressStart = 0;
+    let cachedEvents = [];
+    let timestampUpdateInterval = null;
+
+    // ── Utility: relative timestamps ──
+    function timeAgo(date) {
+      const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+      if (seconds < 5) return 'now';
+      if (seconds < 60) return seconds + 's';
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return minutes + 'm';
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return hours + 'h';
+      const days = Math.floor(hours / 24);
+      return days + 'd';
     }
 
-    // Render uptime bars
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function microAlgoToAlgo(microAlgo) {
+      return (microAlgo / 1e6).toFixed(6);
+    }
+
+    function formatNumber(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toLocaleString();
+    }
+
+    // ── Refresh progress bar ──
+    function startProgressBar() {
+      progressStart = Date.now();
+      const bar = document.getElementById('refresh-progress');
+      bar.style.transition = 'none';
+      bar.style.width = '0%';
+      // Force reflow
+      bar.offsetHeight;
+      bar.style.transition = `width ${REFRESH_INTERVAL}s linear`;
+      bar.style.width = '100%';
+    }
+
+    function resetProgressBar() {
+      const bar = document.getElementById('refresh-progress');
+      bar.style.transition = 'none';
+      bar.style.width = '0%';
+    }
+
+    // ── Uptime bars ──
     function renderUptime() {
       const services = ['uptime-cicd', 'uptime-packages', 'uptime-algochat', 'uptime-agent'];
       services.forEach(id => {
@@ -668,116 +1095,411 @@
           let cls = 'up';
           if (id === 'uptime-agent' && rand > 0.97) cls = 'degraded';
           if (id === 'uptime-algochat' && rand > 0.98) cls = 'degraded';
-          bars.push(`<div class="uptime-bar ${cls}" title="Day ${30 - i}"></div>`);
+          bars.push('<div class="uptime-bar ' + cls + '" title="Day ' + (30 - i) + '"></div>');
         }
         container.innerHTML = bars.join('');
       });
     }
 
-    // Render commit graph
-    function renderCommitGraph() {
-      const container = document.getElementById('commit-graph');
-      const data = [3, 7, 12, 5, 8, 15, 22, 18, 10, 6, 14, 25, 30, 45];
-      const max = Math.max(...data);
-      container.innerHTML = data.map(v => {
-        const h = (v / max) * 100;
-        return `<div class="graph-bar" style="height: ${Math.max(h, 5)}%" title="${v} commits"></div>`;
+    // ── GitHub Events: fetch + render ──
+    async function fetchGitHubEvents() {
+      try {
+        const res = await fetch('https://api.github.com/orgs/' + GH_ORG + '/events?per_page=100');
+        if (!res.ok) throw new Error('GitHub API returned ' + res.status);
+        const events = await res.json();
+        if (Array.isArray(events)) {
+          cachedEvents = events;
+          renderActivityStream(events);
+          renderContributionGraph(events);
+        }
+      } catch (e) {
+        console.warn('GitHub events fetch failed:', e);
+        document.getElementById('activity-log').innerHTML =
+          '<div class="loading-text">Could not load events. Rate-limited or offline.</div>';
+      }
+    }
+
+    function renderActivityStream(events) {
+      const container = document.getElementById('activity-log');
+      const display = events.slice(0, 15);
+
+      container.innerHTML = display.map((e, i) => {
+        const iconDef = EVENT_ICONS[e.type] || { cls: 'other', svg: '<circle cx="8" cy="8" r="3" fill="currentColor"/>' };
+        const repoName = e.repo.name.split('/')[1];
+        const repoUrl = 'https://github.com/' + e.repo.name;
+
+        let desc = '';
+        switch (e.type) {
+          case 'PushEvent': {
+            const count = (e.payload.commits || []).length;
+            const branch = (e.payload.ref || '').replace('refs/heads/', '');
+            desc = 'Pushed ' + count + ' commit' + (count !== 1 ? 's' : '') +
+                   ' to <a href="' + repoUrl + '/tree/' + branch + '" target="_blank" rel="noopener"><code>' + repoName + '/' + branch + '</code></a>';
+            break;
+          }
+          case 'CreateEvent':
+            desc = 'Created ' + (e.payload.ref_type || 'repo') +
+                   (e.payload.ref ? ' <code>' + e.payload.ref + '</code>' : '') +
+                   ' in <a href="' + repoUrl + '" target="_blank" rel="noopener"><code>' + repoName + '</code></a>';
+            break;
+          case 'DeleteEvent':
+            desc = 'Deleted ' + (e.payload.ref_type || 'ref') +
+                   (e.payload.ref ? ' <code>' + e.payload.ref + '</code>' : '') +
+                   ' from <a href="' + repoUrl + '" target="_blank" rel="noopener"><code>' + repoName + '</code></a>';
+            break;
+          case 'PullRequestEvent': {
+            const pr = e.payload.pull_request || {};
+            const prUrl = pr.html_url || repoUrl + '/pulls';
+            desc = 'PR <a href="' + prUrl + '" target="_blank" rel="noopener">#' + (e.payload.number || '') + '</a> ' +
+                   (e.payload.action || '') + ' on <code>' + repoName + '</code>';
+            break;
+          }
+          case 'ReleaseEvent': {
+            const rel = e.payload.release || {};
+            const tag = rel.tag_name || '';
+            const relUrl = rel.html_url || repoUrl + '/releases';
+            desc = 'Released <a href="' + relUrl + '" target="_blank" rel="noopener"><code>' + tag + '</code></a> of <code>' + repoName + '</code>';
+            break;
+          }
+          case 'IssuesEvent': {
+            const iss = e.payload.issue || {};
+            const issUrl = iss.html_url || repoUrl + '/issues';
+            desc = 'Issue <a href="' + issUrl + '" target="_blank" rel="noopener">#' + (iss.number || '') + '</a> ' +
+                   (e.payload.action || '') + ' on <code>' + repoName + '</code>';
+            break;
+          }
+          case 'WatchEvent':
+            desc = 'Starred <a href="' + repoUrl + '" target="_blank" rel="noopener"><code>' + repoName + '</code></a>';
+            break;
+          case 'ForkEvent':
+            desc = 'Forked <a href="' + repoUrl + '" target="_blank" rel="noopener"><code>' + repoName + '</code></a>';
+            break;
+          case 'MemberEvent':
+            desc = 'Member ' + (e.payload.action || 'updated') + ' on <a href="' + repoUrl + '" target="_blank" rel="noopener"><code>' + repoName + '</code></a>';
+            break;
+          case 'PublicEvent':
+            desc = 'Made <a href="' + repoUrl + '" target="_blank" rel="noopener"><code>' + repoName + '</code></a> public';
+            break;
+          default:
+            desc = e.type.replace('Event', '') + ' on <a href="' + repoUrl + '" target="_blank" rel="noopener"><code>' + repoName + '</code></a>';
+        }
+
+        return '<div class="log-entry">' +
+          '<span class="log-time" data-ts="' + e.created_at + '">' + timeAgo(e.created_at) + '</span>' +
+          '<span class="log-icon ' + iconDef.cls + '"><svg viewBox="0 0 16 16" width="14" height="14">' + iconDef.svg + '</svg></span>' +
+          '<span class="log-text">' + desc + '</span>' +
+          '</div>';
       }).join('');
     }
 
-    // Fetch live GitHub data
-    async function fetchGitHubData() {
+    // Live-update relative timestamps every 30s
+    function updateTimestamps() {
+      document.querySelectorAll('[data-ts]').forEach(el => {
+        el.textContent = timeAgo(el.getAttribute('data-ts'));
+      });
+    }
+
+    // ── SVG Contribution Graph ──
+    function renderContributionGraph(events) {
+      const container = document.getElementById('contribution-graph');
+      const tooltip = document.getElementById('contrib-tooltip');
+      const badge = document.getElementById('commit-count-badge');
+
+      // Bucket push event commits by day (last 52 weeks = 364 days)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const buckets = {};
+      let totalCommits = 0;
+
+      // Initialize last 364 days
+      for (let i = 363; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        buckets[key] = 0;
+      }
+
+      // Fill from events
+      events.forEach(e => {
+        if (e.type === 'PushEvent' && e.payload && e.payload.commits) {
+          const day = e.created_at.slice(0, 10);
+          if (buckets.hasOwnProperty(day)) {
+            buckets[day] += e.payload.commits.length;
+          }
+          totalCommits += e.payload.commits.length;
+        }
+      });
+
+      badge.textContent = totalCommits + ' commits';
+
+      // Build sorted day array
+      const days = Object.keys(buckets).sort();
+      const values = days.map(d => buckets[d]);
+      const maxVal = Math.max(...values, 1);
+
+      // Graph dimensions
+      const cellSize = 11;
+      const cellGap = 2;
+      const step = cellSize + cellGap;
+      const numWeeks = Math.ceil(days.length / 7);
+      const labelW = 28;
+      const svgW = labelW + numWeeks * step + 4;
+      const svgH = 7 * step + 20;
+
+      // Color scale (5 levels)
+      function getColor(count) {
+        if (count === 0) return '#161b22';
+        const ratio = count / maxVal;
+        if (ratio <= 0.25) return '#1a3a2a';
+        if (ratio <= 0.50) return '#264d3a';
+        if (ratio <= 0.75) return '#3a7d5c';
+        return '#6c5ce7';
+      }
+
+      // Determine the starting day-of-week offset
+      const firstDate = new Date(days[0]);
+      const startDow = firstDate.getDay(); // 0=Sun
+
+      // Day labels
+      const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+
+      let rects = '';
+      let col = 0;
+      let row = startDow;
+
+      days.forEach((day, i) => {
+        const x = labelW + col * step;
+        const y = row * step;
+        const count = buckets[day];
+        const color = getColor(count);
+        const dateStr = new Date(day + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        rects += '<rect x="' + x + '" y="' + y + '" width="' + cellSize + '" height="' + cellSize + '" ' +
+                 'rx="2" fill="' + color + '" data-day="' + day + '" data-count="' + count + '" ' +
+                 'data-label="' + dateStr + '" class="contrib-cell" style="cursor:pointer"/>';
+
+        row++;
+        if (row >= 7) {
+          row = 0;
+          col++;
+        }
+      });
+
+      // Day-of-week labels
+      let labels = '';
+      dayLabels.forEach((lbl, i) => {
+        if (lbl) {
+          labels += '<text x="0" y="' + (i * step + cellSize - 1) + '" fill="#6b7280" font-size="9" font-family="\'JetBrains Mono\', monospace">' + lbl + '</text>';
+        }
+      });
+
+      container.innerHTML =
+        '<svg width="' + svgW + '" height="' + svgH + '" viewBox="0 0 ' + svgW + ' ' + svgH + '" ' +
+        'style="max-width:100%; height:auto;" role="img" aria-label="Contribution graph">' +
+        labels + rects +
+        '</svg>' +
+        '<div class="graph-legend">' +
+          'Less ' +
+          '<span class="swatch" style="background:#161b22"></span>' +
+          '<span class="swatch" style="background:#1a3a2a"></span>' +
+          '<span class="swatch" style="background:#264d3a"></span>' +
+          '<span class="swatch" style="background:#3a7d5c"></span>' +
+          '<span class="swatch" style="background:#6c5ce7"></span>' +
+          ' More' +
+        '</div>';
+
+      // Tooltip events
+      container.querySelectorAll('.contrib-cell').forEach(rect => {
+        rect.addEventListener('mouseenter', function(ev) {
+          const count = this.getAttribute('data-count');
+          const label = this.getAttribute('data-label');
+          tooltip.textContent = count + ' commit' + (count !== '1' ? 's' : '') + ' on ' + label;
+          tooltip.style.display = 'block';
+        });
+
+        rect.addEventListener('mousemove', function(ev) {
+          tooltip.style.left = (ev.clientX + 12) + 'px';
+          tooltip.style.top = (ev.clientY - 30) + 'px';
+        });
+
+        rect.addEventListener('mouseleave', function() {
+          tooltip.style.display = 'none';
+        });
+      });
+    }
+
+    // ── GitHub Repos ──
+    async function fetchRepos() {
       try {
-        const res = await fetch('https://api.github.com/orgs/corvid-agent/repos?per_page=100&type=all');
+        const res = await fetch('https://api.github.com/orgs/' + GH_ORG + '/repos?type=sources&per_page=30&sort=pushed');
+        if (!res.ok) throw new Error('GitHub repos API returned ' + res.status);
+        const repos = await res.json();
+        if (Array.isArray(repos)) {
+          renderRepos(repos);
+          // Also update stat card with all repos
+          fetchRepoStats();
+        }
+      } catch (e) {
+        console.warn('Repos fetch failed:', e);
+        document.getElementById('repo-grid').innerHTML =
+          '<div class="loading-text">Could not load repos. Rate-limited or offline.</div>';
+      }
+    }
+
+    async function fetchRepoStats() {
+      try {
+        const res = await fetch('https://api.github.com/orgs/' + GH_ORG + '/repos?per_page=100&type=all');
+        if (!res.ok) throw new Error('Repo stats failed');
         const repos = await res.json();
         if (Array.isArray(repos)) {
           document.getElementById('stat-repos').textContent = repos.length;
           const owned = repos.filter(r => !r.fork).length;
           const forked = repos.filter(r => r.fork).length;
-          document.getElementById('stat-repos-detail').textContent = `${owned} owned, ${forked} forked`;
+          document.getElementById('stat-repos-detail').textContent = owned + ' owned, ' + forked + ' forked';
+          document.getElementById('stat-repos-detail').className = 'stat-change';
         }
       } catch (e) {
-        document.getElementById('stat-repos').textContent = '48+';
-        document.getElementById('stat-repos-detail').textContent = 'corvid-agent org';
-      }
-
-      // Fetch recent events
-      try {
-        const res = await fetch('https://api.github.com/orgs/corvid-agent/events?per_page=8');
-        const events = await res.json();
-        if (Array.isArray(events)) {
-          renderGitHubEvents(events);
-        }
-      } catch (e) {
-        console.log('Could not fetch events');
+        document.getElementById('stat-repos').textContent = '--';
+        document.getElementById('stat-repos-detail').textContent = 'unavailable';
       }
     }
 
-    function renderGitHubEvents(events) {
-      const container = document.getElementById('github-events');
-      const icons = {
-        PushEvent: '📤',
-        CreateEvent: '🆕',
-        ReleaseEvent: '🏷️',
-        PullRequestEvent: '🔀',
-        IssuesEvent: '🐛',
-        WatchEvent: '⭐',
-        ForkEvent: '🍴',
-        PublicEvent: '🌐'
-      };
+    function renderRepos(repos) {
+      const container = document.getElementById('repo-grid');
+      const badge = document.getElementById('repo-count-badge');
+      badge.textContent = repos.length + ' source repos';
 
-      const descriptions = {
-        PushEvent: e => `Pushed to <code>${e.repo.name.split('/')[1]}</code>`,
-        CreateEvent: e => `Created ${e.payload.ref_type} in <code>${e.repo.name.split('/')[1]}</code>`,
-        ReleaseEvent: e => `Released ${e.payload.release?.tag_name || 'version'} of <code>${e.repo.name.split('/')[1]}</code>`,
-        PullRequestEvent: e => `PR ${e.payload.action} on <code>${e.repo.name.split('/')[1]}</code>`,
-        IssuesEvent: e => `Issue ${e.payload.action} on <code>${e.repo.name.split('/')[1]}</code>`,
-        WatchEvent: e => `Starred <code>${e.repo.name.split('/')[1]}</code>`,
-        ForkEvent: e => `Forked <code>${e.repo.name.split('/')[1]}</code>`,
-        PublicEvent: e => `Made <code>${e.repo.name.split('/')[1]}</code> public`,
-      };
+      if (repos.length === 0) {
+        container.innerHTML = '<div class="loading-text">No source repositories found.</div>';
+        return;
+      }
 
-      container.innerHTML = events.slice(0, 8).map(e => {
-        const icon = icons[e.type] || '📋';
-        const desc = (descriptions[e.type] || (() => e.type))(e);
-        const time = timeAgo(new Date(e.created_at));
-        return `
-          <div class="log-entry">
-            <span class="log-time">${time}</span>
-            <span class="log-icon">${icon}</span>
-            <span class="log-text">${desc}</span>
-          </div>
-        `;
+      container.innerHTML = repos.map(r => {
+        const langColor = LANG_COLORS[r.language] || '#6b7280';
+        const pushed = r.pushed_at ? formatDate(r.pushed_at) : 'unknown';
+        const desc = r.description || 'No description';
+        const stars = r.stargazers_count || 0;
+
+        return '<a class="repo-card" href="' + r.html_url + '" target="_blank" rel="noopener">' +
+          '<div class="repo-card-name">' + escapeHtml(r.name) + '</div>' +
+          '<div class="repo-card-desc">' + escapeHtml(desc) + '</div>' +
+          '<div class="repo-card-meta">' +
+            (r.language ? '<span><span class="lang-dot" style="background:' + langColor + '"></span>' + r.language + '</span>' : '') +
+            '<span class="star-icon">&#9733; ' + stars + '</span>' +
+            '<span>pushed ' + pushed + '</span>' +
+          '</div>' +
+        '</a>';
       }).join('');
     }
 
-    function timeAgo(date) {
-      const seconds = Math.floor((new Date() - date) / 1000);
-      if (seconds < 60) return 'now';
-      if (seconds < 3600) return Math.floor(seconds / 60) + 'm';
-      if (seconds < 86400) return Math.floor(seconds / 3600) + 'h';
-      return Math.floor(seconds / 86400) + 'd';
+    function escapeHtml(text) {
+      const el = document.createElement('span');
+      el.textContent = text;
+      return el.innerHTML;
     }
 
-    // Agent wallet (public info from the repo)
-    document.getElementById('agent-wallet').textContent = 'CORVID...AGENT';
+    // ── Algorand Wallet ──
+    async function fetchWallet() {
+      try {
+        const res = await fetch(ALGO_API + '/accounts/' + WALLET_ADDRESS);
+        if (!res.ok) throw new Error('Algo API returned ' + res.status);
+        const data = await res.json();
 
-    // Refresh
-    function refreshData() {
-      document.getElementById('last-updated').textContent = 'Refreshing...';
-      fetchGitHubData().then(() => {
-        document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
-      });
+        const balance = microAlgoToAlgo(data.amount || 0);
+        const minBalance = microAlgoToAlgo(data['min-balance'] || 0);
+        const numAssets = (data.assets || []).length;
+        const totalApps = (data['apps-local-state'] || []).length + (data['created-apps'] || []).length;
+
+        document.getElementById('wallet-balance').textContent = balance + ' ALGO';
+        document.getElementById('wallet-min-balance').textContent = minBalance + ' ALGO';
+        document.getElementById('wallet-assets').textContent = numAssets + ' ASAs, ' + totalApps + ' apps';
+
+        // Update stat card
+        const shortBalance = parseFloat(balance).toFixed(3);
+        document.getElementById('stat-balance').textContent = shortBalance;
+        document.getElementById('stat-balance').classList.add('gradient');
+        document.getElementById('stat-balance-detail').textContent = 'ALGO';
+        document.getElementById('stat-balance-detail').className = 'stat-change';
+
+      } catch (e) {
+        console.warn('Wallet fetch failed:', e);
+        document.getElementById('wallet-balance').textContent = 'unavailable';
+        document.getElementById('wallet-min-balance').textContent = '--';
+        document.getElementById('wallet-assets').textContent = '--';
+        document.getElementById('stat-balance').textContent = '--';
+        document.getElementById('stat-balance-detail').textContent = 'offline';
+      }
     }
 
-    // Init
-    renderActivity();
-    renderUptime();
-    renderCommitGraph();
-    fetchGitHubData();
+    // ── Algorand Network Stats ──
+    async function fetchNetworkStats() {
+      try {
+        const res = await fetch(ALGO_API + '/status');
+        if (!res.ok) throw new Error('Algo status API returned ' + res.status);
+        const data = await res.json();
 
-    // Auto-refresh every 60s
-    setInterval(refreshData, 60000);
+        document.getElementById('net-round').textContent = formatNumber(data['last-round'] || 0);
+        document.getElementById('net-round-time').textContent = ((data['time-since-last-round'] || 0) / 1e9).toFixed(1) + 's';
+        document.getElementById('net-catchup').textContent = data['catchup-time'] === 0 ? 'Synced' : (data['catchup-time'] / 1e9).toFixed(1) + 's';
+
+        const nextVer = data['next-version'] || 'unknown';
+        // Extract version shorthand
+        const versionMatch = nextVer.match(/v(\d+\.\d+)/);
+        document.getElementById('net-version').textContent = versionMatch ? 'v' + versionMatch[1] : nextVer.slice(0, 24);
+
+        document.getElementById('network-badge').textContent = 'synced';
+        document.getElementById('network-badge').className = 'panel-badge badge-green';
+
+        // Update status chip
+        document.getElementById('status-text').textContent = 'Operational';
+
+      } catch (e) {
+        console.warn('Network stats fetch failed:', e);
+        document.getElementById('net-round').textContent = '--';
+        document.getElementById('net-round-time').textContent = '--';
+        document.getElementById('net-catchup').textContent = '--';
+        document.getElementById('net-version').textContent = '--';
+        document.getElementById('network-badge').textContent = 'offline';
+        document.getElementById('network-badge').className = 'panel-badge badge-yellow';
+      }
+    }
+
+    // ── Master refresh ──
+    async function refreshData() {
+      const updateEl = document.getElementById('last-updated');
+      updateEl.textContent = 'Refreshing...';
+      resetProgressBar();
+
+      try {
+        await Promise.allSettled([
+          fetchGitHubEvents(),
+          fetchRepos(),
+          fetchWallet(),
+          fetchNetworkStats()
+        ]);
+      } catch (e) {
+        console.warn('Refresh encountered errors:', e);
+      }
+
+      updateEl.textContent = new Date().toLocaleTimeString();
+      startProgressBar();
+    }
+
+    // ── Initialization ──
+    function init() {
+      renderUptime();
+
+      // Start fetching data
+      refreshData();
+
+      // Auto-refresh
+      refreshTimer = setInterval(refreshData, REFRESH_INTERVAL * 1000);
+
+      // Update relative timestamps every 30s
+      timestampUpdateInterval = setInterval(updateTimestamps, 30000);
+    }
+
+    init();
   </script>
 </body>
 </html>
