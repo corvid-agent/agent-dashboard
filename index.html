@@ -193,8 +193,9 @@
       grid-template-areas:
         "stat1    stat2    stat3    stat4"
         "packages packages activity activity"
-        "uptime   uptime   commits  commits"
-        "wallet   wallet   network  network"
+        "cistat   cistat   commits  commits"
+        "uptime   uptime   wallet   wallet"
+        "network  network  network  network"
         "repos    repos    repos    repos";
       gap: 1rem;
       padding: 1.5rem 2rem;
@@ -254,6 +255,57 @@
     .area-wallet   { grid-area: wallet; }
     .area-network  { grid-area: network; }
     .area-repos    { grid-area: repos; }
+    .area-cistat   { grid-area: cistat; }
+
+    /* CI Status items */
+    .ci-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.5rem;
+    }
+
+    .ci-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0.7rem;
+      background: rgba(17, 19, 24, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.78rem;
+      transition: border-color 0.2s;
+    }
+
+    .ci-item:hover {
+      border-color: rgba(108, 92, 231, 0.3);
+    }
+
+    .ci-item a {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--text-bright);
+      text-decoration: none;
+      flex: 1;
+    }
+
+    .ci-item a:hover { color: var(--accent-2); }
+
+    .ci-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .ci-dot.success { background: var(--green); }
+    .ci-dot.failure { background: var(--red); }
+    .ci-dot.pending { background: var(--yellow); animation: pulse 1.5s infinite; }
+    .ci-dot.unknown { background: var(--text-dim); }
+
+    .ci-time {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--text-dim);
+    }
 
     /* ── Stat Cards ── */
     .stat-card { text-align: center; }
@@ -665,8 +717,9 @@
           "stat3    stat4"
           "packages packages"
           "activity activity"
-          "uptime   uptime"
+          "cistat   cistat"
           "commits  commits"
+          "uptime   uptime"
           "wallet   wallet"
           "network  network"
           "repos    repos";
@@ -678,8 +731,8 @@
         grid-template-columns: 1fr;
         grid-template-areas:
           "stat1" "stat2" "stat3" "stat4"
-          "packages" "activity" "uptime" "commits"
-          "wallet" "network" "repos";
+          "packages" "activity" "cistat" "commits"
+          "uptime" "wallet" "network" "repos";
         padding: 1rem;
       }
 
@@ -885,6 +938,17 @@
       </div>
       <div id="activity-log">
         <div class="loading-text">Fetching live events...</div>
+      </div>
+    </div>
+
+    <!-- ── CI Status ── -->
+    <div class="panel area-cistat">
+      <div class="panel-header">
+        <span class="panel-title">CI / Build Status</span>
+        <span class="panel-badge badge-green" id="ci-badge">loading</span>
+      </div>
+      <div class="ci-grid" id="ci-grid">
+        <div class="loading-text">Checking CI workflows...</div>
       </div>
     </div>
 
@@ -1104,7 +1168,7 @@
     // ── GitHub Events: fetch + render ──
     async function fetchGitHubEvents() {
       try {
-        const res = await fetch('https://api.github.com/orgs/' + GH_ORG + '/events?per_page=100');
+        const res = await fetch('https://api.github.com/users/' + GH_ORG + '/events/public?per_page=100');
         if (!res.ok) throw new Error('GitHub API returned ' + res.status);
         const events = await res.json();
         if (Array.isArray(events)) {
@@ -1331,7 +1395,7 @@
     // ── GitHub Repos ──
     async function fetchRepos() {
       try {
-        const res = await fetch('https://api.github.com/orgs/' + GH_ORG + '/repos?type=sources&per_page=30&sort=pushed');
+        const res = await fetch('https://api.github.com/users/' + GH_ORG + '/repos?type=owner&per_page=30&sort=pushed');
         if (!res.ok) throw new Error('GitHub repos API returned ' + res.status);
         const repos = await res.json();
         if (Array.isArray(repos)) {
@@ -1348,7 +1412,7 @@
 
     async function fetchRepoStats() {
       try {
-        const res = await fetch('https://api.github.com/orgs/' + GH_ORG + '/repos?per_page=100&type=all');
+        const res = await fetch('https://api.github.com/users/' + GH_ORG + '/repos?per_page=100');
         if (!res.ok) throw new Error('Repo stats failed');
         const repos = await res.json();
         if (Array.isArray(repos)) {
@@ -1464,6 +1528,68 @@
       }
     }
 
+    // ── CI Status ──
+    async function fetchCIStatus() {
+      const repos = [
+        'corvid-agent', 'bw-cinema', 'corvid-agent-chat', 'agent-dashboard',
+        'agent-profile', 'algo-explorer', 'corvid-agent.github.io',
+        'retry', 'env', 'chronos', 'pipe', 'throttle', 'algochat-cli'
+      ];
+
+      const container = document.getElementById('ci-grid');
+      const badge = document.getElementById('ci-badge');
+      const results = [];
+
+      try {
+        const fetches = repos.map(async (repo) => {
+          try {
+            const res = await fetch('https://api.github.com/repos/' + GH_ORG + '/' + repo + '/actions/runs?per_page=1&status=completed');
+            if (!res.ok) return { repo, status: 'unknown', time: null };
+            const data = await res.json();
+            const run = (data.workflow_runs || [])[0];
+            if (!run) return { repo, status: 'unknown', time: null };
+            return {
+              repo,
+              status: run.conclusion === 'success' ? 'success' : 'failure',
+              time: run.updated_at
+            };
+          } catch {
+            return { repo, status: 'unknown', time: null };
+          }
+        });
+
+        const settled = await Promise.allSettled(fetches);
+        settled.forEach(r => {
+          if (r.status === 'fulfilled') results.push(r.value);
+        });
+
+        const passing = results.filter(r => r.status === 'success').length;
+        const failing = results.filter(r => r.status === 'failure').length;
+
+        if (failing > 0) {
+          badge.textContent = failing + ' failing';
+          badge.className = 'panel-badge badge-yellow';
+        } else {
+          badge.textContent = passing + '/' + results.length + ' passing';
+          badge.className = 'panel-badge badge-green';
+        }
+
+        container.innerHTML = results.map(r => {
+          const url = 'https://github.com/' + GH_ORG + '/' + r.repo + '/actions';
+          const ago = r.time ? timeAgo(r.time) : '--';
+          return '<div class="ci-item">' +
+            '<span class="ci-dot ' + r.status + '"></span>' +
+            '<a href="' + url + '" target="_blank" rel="noopener">' + r.repo + '</a>' +
+            '<span class="ci-time">' + ago + '</span>' +
+          '</div>';
+        }).join('');
+
+      } catch (e) {
+        console.warn('CI status fetch failed:', e);
+        container.innerHTML = '<div class="loading-text">Could not load CI status.</div>';
+      }
+    }
+
     // ── Master refresh ──
     async function refreshData() {
       const updateEl = document.getElementById('last-updated');
@@ -1475,7 +1601,8 @@
           fetchGitHubEvents(),
           fetchRepos(),
           fetchWallet(),
-          fetchNetworkStats()
+          fetchNetworkStats(),
+          fetchCIStatus()
         ]);
       } catch (e) {
         console.warn('Refresh encountered errors:', e);
