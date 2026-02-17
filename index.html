@@ -877,8 +877,8 @@
         <span class="panel-title">Tests</span>
         <span class="panel-badge badge-green">passing</span>
       </div>
-      <div class="stat-value" id="stat-tests">156</div>
-      <div class="stat-change">100% pass rate</div>
+      <div class="stat-value" id="stat-tests">5/5</div>
+      <div class="stat-change">all passing</div>
     </div>
 
     <div class="panel stat-card area-stat3">
@@ -915,7 +915,7 @@
             </div>
           </div>
           <div class="pkg-status">
-            <span class="pkg-tests">25 tests</span>
+            <span class="pkg-tests">passing</span>
             <span class="status-indicator ok"></span>
           </div>
         </div>
@@ -928,7 +928,7 @@
             </div>
           </div>
           <div class="pkg-status">
-            <span class="pkg-tests">40 tests</span>
+            <span class="pkg-tests">passing</span>
             <span class="status-indicator ok"></span>
           </div>
         </div>
@@ -941,7 +941,7 @@
             </div>
           </div>
           <div class="pkg-status">
-            <span class="pkg-tests">37 tests</span>
+            <span class="pkg-tests">passing</span>
             <span class="status-indicator ok"></span>
           </div>
         </div>
@@ -954,7 +954,7 @@
             </div>
           </div>
           <div class="pkg-status">
-            <span class="pkg-tests">28 tests</span>
+            <span class="pkg-tests">passing</span>
             <span class="status-indicator ok"></span>
           </div>
         </div>
@@ -967,7 +967,7 @@
             </div>
           </div>
           <div class="pkg-status">
-            <span class="pkg-tests">26 tests</span>
+            <span class="pkg-tests">passing</span>
             <span class="status-indicator ok"></span>
           </div>
         </div>
@@ -1047,7 +1047,7 @@
         <span class="chain-key">Address</span>
         <span class="chain-val addr" id="agent-wallet">
           <a href="https://allo.info/account/WGSHC4TYKYBS6EX5V5E377BQDLKWIIPBCFOLZQZIXCKHFIEKRPBFOMW25A" target="_blank" rel="noopener" id="wallet-link">
-            YZAKVE...BYC4OM
+            WGSHC4...MW25A
           </a>
         </span>
       </div>
@@ -1235,7 +1235,6 @@
         if (Array.isArray(events)) {
           cachedEvents = events;
           renderActivityStream(events);
-          renderContributionGraph(events);
         }
       } catch (e) {
         console.warn('GitHub events fetch failed:', e);
@@ -1324,13 +1323,12 @@
       });
     }
 
-    // ── SVG Contribution Graph ──
-    function renderContributionGraph(events) {
+    // ── SVG Contribution Graph (from repo commit stats) ──
+    async function fetchContributionGraph() {
       const container = document.getElementById('contribution-graph');
       const tooltip = document.getElementById('contrib-tooltip');
       const badge = document.getElementById('commit-count-badge');
 
-      // Bucket push event commits by day (last 52 weeks = 364 days)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const buckets = {};
@@ -1340,79 +1338,112 @@
       for (let i = 363; i >= 0; i--) {
         const d = new Date(today);
         d.setDate(d.getDate() - i);
-        const key = d.toISOString().slice(0, 10);
-        buckets[key] = 0;
+        buckets[d.toISOString().slice(0, 10)] = 0;
       }
 
-      // Fill from events
-      events.forEach(e => {
-        if (e.type === 'PushEvent' && e.payload && e.payload.commits) {
-          const day = e.created_at.slice(0, 10);
-          if (buckets.hasOwnProperty(day)) {
-            buckets[day] += e.payload.commits.length;
+      try {
+        // Fetch repo list
+        const reposRes = await fetch('https://api.github.com/users/' + GH_ORG + '/repos?per_page=30&sort=pushed');
+        if (!reposRes.ok) throw new Error('repos fetch failed');
+        const repos = await reposRes.json();
+        if (!Array.isArray(repos)) throw new Error('bad repos data');
+
+        // Fetch commit_activity for non-fork repos (limit to 10 for rate limits)
+        const owned = repos.filter(function(r) { return !r.fork; }).slice(0, 10);
+
+        await Promise.allSettled(owned.map(async function(repo) {
+          try {
+            var res = await fetch('https://api.github.com/repos/' + GH_ORG + '/' + repo.name + '/stats/commit_activity');
+            // GitHub returns 202 while computing — retry once
+            if (res.status === 202) {
+              await new Promise(function(r) { setTimeout(r, 2000); });
+              res = await fetch('https://api.github.com/repos/' + GH_ORG + '/' + repo.name + '/stats/commit_activity');
+            }
+            if (!res.ok) return;
+            var weeks = await res.json();
+            if (!Array.isArray(weeks)) return;
+
+            weeks.forEach(function(w) {
+              var weekStart = new Date(w.week * 1000);
+              w.days.forEach(function(count, dayIndex) {
+                if (count > 0) {
+                  var d = new Date(weekStart);
+                  d.setDate(d.getDate() + dayIndex);
+                  var key = d.toISOString().slice(0, 10);
+                  if (buckets.hasOwnProperty(key)) {
+                    buckets[key] += count;
+                  }
+                  totalCommits += count;
+                }
+              });
+            });
+          } catch (err) { /* skip repo */ }
+        }));
+      } catch (e) {
+        console.warn('Contribution graph repo stats failed, falling back to events:', e);
+        // Fall back to events data
+        cachedEvents.forEach(function(ev) {
+          if (ev.type === 'PushEvent' && ev.payload && ev.payload.commits) {
+            var day = ev.created_at.slice(0, 10);
+            if (buckets.hasOwnProperty(day)) {
+              buckets[day] += ev.payload.commits.length;
+            }
+            totalCommits += ev.payload.commits.length;
           }
-          totalCommits += e.payload.commits.length;
-        }
-      });
+        });
+      }
 
       badge.textContent = totalCommits + ' commits';
 
       // Build sorted day array
-      const days = Object.keys(buckets).sort();
-      const values = days.map(d => buckets[d]);
-      const maxVal = Math.max(...values, 1);
+      var days = Object.keys(buckets).sort();
+      var values = days.map(function(d) { return buckets[d]; });
+      var maxVal = Math.max.apply(null, values.concat([1]));
 
       // Graph dimensions
-      const cellSize = 11;
-      const cellGap = 2;
-      const step = cellSize + cellGap;
-      const numWeeks = Math.ceil(days.length / 7);
-      const labelW = 28;
-      const svgW = labelW + numWeeks * step + 4;
-      const svgH = 7 * step + 20;
+      var cellSize = 11;
+      var cellGap = 2;
+      var step = cellSize + cellGap;
+      var numWeeks = Math.ceil(days.length / 7);
+      var labelW = 28;
+      var svgW = labelW + numWeeks * step + 4;
+      var svgH = 7 * step + 20;
 
-      // Color scale (5 levels)
+      // Color scale
       function getColor(count) {
         if (count === 0) return '#161b22';
-        const ratio = count / maxVal;
+        var ratio = count / maxVal;
         if (ratio <= 0.25) return '#1a3a2a';
         if (ratio <= 0.50) return '#264d3a';
         if (ratio <= 0.75) return '#3a7d5c';
         return '#6c5ce7';
       }
 
-      // Determine the starting day-of-week offset
-      const firstDate = new Date(days[0]);
-      const startDow = firstDate.getDay(); // 0=Sun
+      var firstDate = new Date(days[0]);
+      var startDow = firstDate.getDay();
+      var dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
-      // Day labels
-      const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+      var rects = '';
+      var col = 0;
+      var row = startDow;
 
-      let rects = '';
-      let col = 0;
-      let row = startDow;
-
-      days.forEach((day, i) => {
-        const x = labelW + col * step;
-        const y = row * step;
-        const count = buckets[day];
-        const color = getColor(count);
-        const dateStr = new Date(day + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      days.forEach(function(day) {
+        var x = labelW + col * step;
+        var y = row * step;
+        var count = buckets[day];
+        var color = getColor(count);
+        var dateStr = new Date(day + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
         rects += '<rect x="' + x + '" y="' + y + '" width="' + cellSize + '" height="' + cellSize + '" ' +
                  'rx="2" fill="' + color + '" data-day="' + day + '" data-count="' + count + '" ' +
                  'data-label="' + dateStr + '" class="contrib-cell" style="cursor:pointer"/>';
 
         row++;
-        if (row >= 7) {
-          row = 0;
-          col++;
-        }
+        if (row >= 7) { row = 0; col++; }
       });
 
-      // Day-of-week labels
-      let labels = '';
-      dayLabels.forEach((lbl, i) => {
+      var labels = '';
+      dayLabels.forEach(function(lbl, i) {
         if (lbl) {
           labels += '<text x="0" y="' + (i * step + cellSize - 1) + '" fill="#6b7280" font-size="9" font-family="\'JetBrains Mono\', monospace">' + lbl + '</text>';
         }
@@ -1434,19 +1465,17 @@
         '</div>';
 
       // Tooltip events
-      container.querySelectorAll('.contrib-cell').forEach(rect => {
+      container.querySelectorAll('.contrib-cell').forEach(function(rect) {
         rect.addEventListener('mouseenter', function(ev) {
-          const count = this.getAttribute('data-count');
-          const label = this.getAttribute('data-label');
+          var count = this.getAttribute('data-count');
+          var label = this.getAttribute('data-label');
           tooltip.textContent = count + ' commit' + (count !== '1' ? 's' : '') + ' on ' + label;
           tooltip.style.display = 'block';
         });
-
         rect.addEventListener('mousemove', function(ev) {
           tooltip.style.left = (ev.clientX + 12) + 'px';
           tooltip.style.top = (ev.clientY - 30) + 'px';
         });
-
         rect.addEventListener('mouseleave', function() {
           tooltip.style.display = 'none';
         });
@@ -1663,7 +1692,8 @@
           fetchRepos(),
           fetchWallet(),
           fetchNetworkStats(),
-          fetchCIStatus()
+          fetchCIStatus(),
+          fetchContributionGraph()
         ]);
       } catch (e) {
         console.warn('Refresh encountered errors:', e);
