@@ -9,15 +9,21 @@
   <meta property="og:description" content="Live operational dashboard monitoring packages, CI, GitHub activity, and Algorand wallet.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://corvid-agent.github.io/agent-dashboard/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="corvid-agent | Status Dashboard">
+  <meta name="twitter:description" content="Live operational dashboard monitoring packages, CI, GitHub activity, and Algorand wallet.">
+  <link rel="canonical" href="https://corvid-agent.github.io/agent-dashboard/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F4CA;</text></svg>">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
     :root {
-      --bg: #0b0d11;
-      --bg-panel: #111318;
-      --bg-panel-hover: #181b22;
-      --border: #1c1f28;
+      --bg: #0a0a0f;
+      --bg-panel: #12121a;
+      --bg-panel-hover: #1a1a25;
+      --border: #1e1e2e;
       --text: #c8ccd8;
       --text-dim: #6b7280;
       --text-bright: #f0f2f8;
@@ -774,8 +780,30 @@
     }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
   </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "corvid-agent Status Dashboard",
+    "description": "Live operational dashboard for corvid-agent — monitoring packages, CI status, GitHub activity, Algorand wallet, and network health.",
+    "url": "https://corvid-agent.github.io/agent-dashboard/",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Web",
+    "author": {
+      "@type": "Organization",
+      "name": "corvid-agent",
+      "url": "https://corvid-agent.github.io"
+    }
+  }
+  </script>
 </head>
 <body>
+  <noscript>
+    <div style="background:#1a1a2e;color:#e0e0e8;padding:2rem;text-align:center;font-family:sans-serif;">
+      <h1>corvid-agent Status Dashboard</h1>
+      <p>This dashboard requires JavaScript to display live data. Please enable JavaScript to continue.</p>
+    </div>
+  </noscript>
 
   <!-- Auto-refresh progress bar -->
   <div class="refresh-progress-track">
