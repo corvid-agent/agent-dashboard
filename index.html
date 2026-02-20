@@ -170,6 +170,24 @@
       height: 14px;
     }
 
+    .interval-select {
+      padding: 0.4rem 0.5rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-size: 0.875rem;
+      font-family: var(--sans);
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .interval-select:hover, .interval-select:focus-visible {
+      border-color: var(--accent);
+      color: var(--text);
+      outline: none;
+    }
+
     .last-updated {
       font-size: 0.875rem;
       color: var(--text-dim);
@@ -863,6 +881,12 @@
       </div>
     </div>
     <div class="header-right">
+      <select class="interval-select" id="interval-select" onchange="changeInterval(this.value)" aria-label="Auto-refresh interval">
+        <option value="30">30s</option>
+        <option value="60" selected>1m</option>
+        <option value="300">5m</option>
+        <option value="0">Off</option>
+      </select>
       <button class="refresh-btn" onclick="refreshData()">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 2v4.5h4.5"/><path d="M2.4 10a5.5 5.5 0 109.2-4.5L6 2"/></svg>
         Refresh
@@ -1143,7 +1167,7 @@
     const WALLET_ADDRESS = 'WGSHC4TYKYBS6EX5V5E377BQDLKWIIPBCFOLZQZIXCKHFIEKRPBFOMW25A';
     const ALGO_API = 'https://mainnet-api.4160.nodely.dev/v2';
     const GH_ORG = 'corvid-agent';
-    const REFRESH_INTERVAL = 60; // seconds
+    let REFRESH_INTERVAL = parseInt(localStorage.getItem('dash-refresh-interval') || '60', 10); // seconds
 
     // Language colors for repo cards
     const LANG_COLORS = {
@@ -1717,15 +1741,40 @@
       startProgressBar();
     }
 
+    // ── Interval control ──
+    function changeInterval(val) {
+      REFRESH_INTERVAL = parseInt(val, 10);
+      localStorage.setItem('dash-refresh-interval', val);
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = null;
+      resetProgressBar();
+      if (REFRESH_INTERVAL > 0) {
+        refreshTimer = setInterval(refreshData, REFRESH_INTERVAL * 1000);
+        startProgressBar();
+      }
+    }
+
+    function restoreInterval() {
+      var sel = document.getElementById('interval-select');
+      var saved = localStorage.getItem('dash-refresh-interval') || '60';
+      REFRESH_INTERVAL = parseInt(saved, 10);
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === saved) { sel.selectedIndex = i; break; }
+      }
+    }
+
     // ── Initialization ──
     function init() {
+      restoreInterval();
       renderUptime();
 
       // Start fetching data
       refreshData();
 
-      // Auto-refresh
-      refreshTimer = setInterval(refreshData, REFRESH_INTERVAL * 1000);
+      // Auto-refresh (if enabled)
+      if (REFRESH_INTERVAL > 0) {
+        refreshTimer = setInterval(refreshData, REFRESH_INTERVAL * 1000);
+      }
 
       // Update relative timestamps every 30s
       timestampUpdateInterval = setInterval(updateTimestamps, 30000);
