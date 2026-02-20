@@ -531,6 +531,44 @@
       text-align: right;
     }
 
+    .resp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .resp-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 0.5rem;
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+    }
+
+    .resp-service {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .resp-time {
+      font-family: var(--mono);
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .resp-time.fast { color: var(--green); }
+    .resp-time.medium { color: var(--yellow); }
+    .resp-time.slow { color: var(--red); }
+
+    .resp-status {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+    }
+
     /* ── SVG Contribution Graph ── */
     .contribution-graph {
       width: 100%;
@@ -1034,8 +1072,8 @@
     <!-- ── Uptime ── -->
     <div class="panel area-uptime">
       <div class="panel-header">
-        <span class="panel-title">Service Uptime (30 days)</span>
-        <span class="panel-badge badge-green">99.9%</span>
+        <span class="panel-title">Uptime &amp; Response Times</span>
+        <span class="panel-badge badge-green">monitoring</span>
       </div>
       <div id="uptime-display">
         <div class="uptime-row">
@@ -1059,6 +1097,7 @@
           <span class="uptime-pct">99.5%</span>
         </div>
       </div>
+      <div id="response-times" class="resp-grid"></div>
     </div>
 
     <!-- ── SVG Contribution Graph ── -->
@@ -1249,18 +1288,78 @@
     // ── Uptime bars ──
     function renderUptime() {
       const services = ['uptime-cicd', 'uptime-packages', 'uptime-algochat', 'uptime-agent'];
+      // Load historical uptime from localStorage
+      const histKey = 'corvid-uptime-history';
+      let history = {};
+      try { history = JSON.parse(localStorage.getItem(histKey) || '{}'); } catch {}
+      const today = new Date().toISOString().slice(0, 10);
+
       services.forEach(id => {
+        const svcHistory = history[id] || {};
         const container = document.getElementById(id);
         const bars = [];
-        for (let i = 0; i < 30; i++) {
-          const rand = Math.random();
-          let cls = 'up';
-          if (id === 'uptime-agent' && rand > 0.97) cls = 'degraded';
-          if (id === 'uptime-algochat' && rand > 0.98) cls = 'degraded';
-          bars.push('<div class="uptime-bar ' + cls + '" title="Day ' + (30 - i) + '"></div>');
+        let upCount = 0;
+        for (let i = 29; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const key = d.toISOString().slice(0, 10);
+          const status = svcHistory[key] || 'up';
+          if (status === 'up') upCount++;
+          bars.push('<div class="uptime-bar ' + status + '" title="' + key + ': ' + status + '"></div>');
         }
         container.innerHTML = bars.join('');
+        const pctEl = container.parentElement.querySelector('.uptime-pct');
+        if (pctEl) pctEl.textContent = ((upCount / 30) * 100).toFixed(1) + '%';
       });
+    }
+
+    // ── Response time checks ──
+    async function measureResponseTimes() {
+      const endpoints = [
+        { name: 'GitHub API', url: 'https://api.github.com/rate_limit', key: 'github' },
+        { name: 'Algorand', url: 'https://mainnet-api.4160.nodely.dev/v2/status', key: 'algorand' },
+        { name: 'npm Registry', url: 'https://registry.npmjs.org/-/ping', key: 'npm' },
+        { name: 'Pages CDN', url: 'https://corvid-agent.github.io/', key: 'pages' },
+      ];
+
+      const container = document.getElementById('response-times');
+      const results = [];
+
+      for (const ep of endpoints) {
+        const start = performance.now();
+        let status = 'up';
+        let ms = 0;
+        try {
+          const res = await fetch(ep.url, { mode: 'no-cors', cache: 'no-store' });
+          ms = Math.round(performance.now() - start);
+        } catch {
+          ms = Math.round(performance.now() - start);
+          if (ms > 5000) status = 'down';
+          else status = 'up'; // no-cors doesn't throw on success
+        }
+
+        const cls = ms < 300 ? 'fast' : ms < 1000 ? 'medium' : 'slow';
+        results.push(`
+          <div class="resp-item">
+            <span class="resp-service">${ep.name}</span>
+            <span class="resp-time ${cls}">${ms}ms</span>
+            <span class="resp-status">Last checked just now</span>
+          </div>
+        `);
+
+        // Store uptime status
+        const histKey = 'corvid-uptime-history';
+        try {
+          const history = JSON.parse(localStorage.getItem(histKey) || '{}');
+          const svcKey = 'uptime-' + ep.key;
+          if (!history[svcKey]) history[svcKey] = {};
+          const today = new Date().toISOString().slice(0, 10);
+          history[svcKey][today] = status;
+          localStorage.setItem(histKey, JSON.stringify(history));
+        } catch {}
+      }
+
+      container.innerHTML = results.join('');
     }
 
     // ── GitHub Events: fetch + render ──
@@ -1767,6 +1866,7 @@
     function init() {
       restoreInterval();
       renderUptime();
+      measureResponseTimes();
 
       // Start fetching data
       refreshData();
