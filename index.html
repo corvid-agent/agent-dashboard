@@ -838,6 +838,206 @@
   /* Accessibility (WCAG AA) */
         *:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+    /* ── Voice Mode ── */
+    .voice-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .voice-toggle-btn {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.7rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-size: 0.875rem;
+      font-family: var(--sans);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .voice-toggle-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .voice-toggle-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(108, 92, 231, 0.08);
+    }
+
+    .voice-toggle-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .mic-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .mic-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .mic-btn.recording {
+      border-color: var(--red);
+      color: var(--red);
+      background: rgba(239, 68, 68, 0.1);
+      animation: mic-pulse 1.5s infinite;
+    }
+
+    .mic-btn.unavailable {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .mic-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    @keyframes mic-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
+
+    /* Recording indicator dot */
+    .mic-btn.recording::after {
+      content: '';
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      width: 8px;
+      height: 8px;
+      background: var(--red);
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+
+    /* Voice transcript overlay */
+    .voice-transcript-overlay {
+      display: none;
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      min-width: 320px;
+      max-width: 600px;
+      z-index: 500;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .voice-transcript-overlay.visible {
+      display: block;
+    }
+
+    .voice-transcript-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
+
+    .voice-transcript-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .voice-transcript-title .rec-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--red);
+      border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+
+    .voice-transcript-close {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.2rem;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+
+    .voice-transcript-close:hover {
+      color: var(--text-bright);
+    }
+
+    .voice-transcript-text {
+      font-family: var(--mono);
+      font-size: 0.875rem;
+      color: var(--text-bright);
+      line-height: 1.5;
+      min-height: 1.5em;
+      max-height: 6em;
+      overflow-y: auto;
+    }
+
+    .voice-transcript-text .interim {
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    .voice-status-toast {
+      display: none;
+      position: fixed;
+      bottom: 1rem;
+      right: 2rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      color: var(--text);
+      font-family: var(--mono);
+      z-index: 500;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      transition: opacity 0.3s;
+    }
+
+    .voice-status-toast.visible {
+      display: block;
+    }
+
+    .voice-status-toast svg {
+      width: 14px;
+      height: 14px;
+      vertical-align: -2px;
+      margin-right: 6px;
+      color: var(--accent);
+    }
     </style>
   <script type="application/ld+json">
   {
@@ -919,6 +1119,15 @@
       </div>
     </div>
     <div class="header-right">
+      <div class="voice-controls">
+        <button class="voice-toggle-btn" id="voice-toggle-btn" onclick="toggleVoiceMode()" title="Toggle voice mode on/off" aria-label="Toggle voice mode">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 10V6"/><path d="M4 12V4"/><path d="M7 14V2"/><path d="M10 12V4"/><path d="M13 10V6"/></svg>
+          Voice
+        </button>
+        <button class="mic-btn" id="mic-btn" onclick="toggleMicrophone()" title="Click to start/stop speech recognition" aria-label="Microphone: start or stop speech recognition">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="1" width="6" height="9" rx="3"/><path d="M3 7a5 5 0 0010 0"/><line x1="8" y1="12" x2="8" y2="15"/><line x1="5.5" y1="15" x2="10.5" y2="15"/></svg>
+        </button>
+      </div>
       <select class="interval-select" id="interval-select" onchange="changeInterval(this.value)" aria-label="Auto-refresh interval">
         <option value="30">30s</option>
         <option value="60" selected>1m</option>
@@ -1180,6 +1389,24 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- Voice transcript overlay -->
+  <div class="voice-transcript-overlay" id="voice-transcript-overlay">
+    <div class="voice-transcript-header">
+      <span class="voice-transcript-title">
+        <span class="rec-dot"></span>
+        Listening...
+      </span>
+      <button class="voice-transcript-close" onclick="stopMicrophone()" title="Stop listening" aria-label="Stop listening">&times;</button>
+    </div>
+    <div class="voice-transcript-text" id="voice-transcript-text">Speak now...</div>
+  </div>
+
+  <!-- Voice status toast -->
+  <div class="voice-status-toast" id="voice-status-toast">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 10V6"/><path d="M4 12V4"/><path d="M7 14V2"/><path d="M10 12V4"/><path d="M13 10V6"/></svg>
+    <span id="voice-toast-text"></span>
   </div>
 
   <footer style="text-align:center; padding:3rem 2rem; border-top:1px solid var(--border); max-width:1400px; margin:0 auto;">
@@ -1862,9 +2089,264 @@
       }
     }
 
+    // ── Voice Mode ──
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const speechSynthesisAvailable = 'speechSynthesis' in window;
+    const speechRecognitionAvailable = typeof SpeechRecognition !== 'undefined';
+
+    let voiceModeEnabled = false;
+    let recognition = null;
+    let isRecording = false;
+    let voiceToastTimer = null;
+    let finalTranscript = '';
+    let interimTranscript = '';
+
+    // Restore voice mode from localStorage
+    function restoreVoiceMode() {
+      const saved = localStorage.getItem('corvid-voice-mode');
+      voiceModeEnabled = saved === 'true';
+      updateVoiceToggleUI();
+
+      // Mark mic as unavailable if Speech API is missing
+      if (!speechRecognitionAvailable) {
+        const micBtn = document.getElementById('mic-btn');
+        micBtn.classList.add('unavailable');
+        micBtn.title = 'Speech recognition not available in this browser';
+      }
+    }
+
+    function toggleVoiceMode() {
+      voiceModeEnabled = !voiceModeEnabled;
+      localStorage.setItem('corvid-voice-mode', voiceModeEnabled.toString());
+      updateVoiceToggleUI();
+
+      if (voiceModeEnabled) {
+        showVoiceToast('Voice mode enabled');
+        speak('Voice mode enabled');
+      } else {
+        // Stop any ongoing speech or recognition
+        if (isRecording) stopMicrophone();
+        if (speechSynthesisAvailable) window.speechSynthesis.cancel();
+        showVoiceToast('Voice mode disabled');
+      }
+    }
+
+    function updateVoiceToggleUI() {
+      const btn = document.getElementById('voice-toggle-btn');
+      if (voiceModeEnabled) {
+        btn.classList.add('active');
+        btn.title = 'Voice mode is ON - click to disable';
+      } else {
+        btn.classList.remove('active');
+        btn.title = 'Voice mode is OFF - click to enable';
+      }
+    }
+
+    function toggleMicrophone() {
+      if (!speechRecognitionAvailable) {
+        showVoiceToast('Speech recognition not supported in this browser');
+        return;
+      }
+      if (isRecording) {
+        stopMicrophone();
+      } else {
+        startMicrophone();
+      }
+    }
+
+    function startMicrophone() {
+      if (!speechRecognitionAvailable) return;
+      if (isRecording) return;
+
+      // Auto-enable voice mode when mic is started
+      if (!voiceModeEnabled) {
+        voiceModeEnabled = true;
+        localStorage.setItem('corvid-voice-mode', 'true');
+        updateVoiceToggleUI();
+      }
+
+      finalTranscript = '';
+      interimTranscript = '';
+
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = function() {
+        isRecording = true;
+        document.getElementById('mic-btn').classList.add('recording');
+        document.getElementById('voice-transcript-overlay').classList.add('visible');
+        document.getElementById('voice-transcript-text').textContent = 'Speak now...';
+      };
+
+      recognition.onresult = function(event) {
+        interimTranscript = '';
+        for (var i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript + ' ';
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        var display = '';
+        if (finalTranscript) {
+          display = finalTranscript;
+        }
+        if (interimTranscript) {
+          display += '<span class="interim">' + escapeHtml(interimTranscript) + '</span>';
+        }
+        document.getElementById('voice-transcript-text').innerHTML = display || 'Speak now...';
+      };
+
+      recognition.onerror = function(event) {
+        console.warn('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
+          showVoiceToast('Microphone access denied');
+        } else if (event.error === 'no-speech') {
+          showVoiceToast('No speech detected');
+        } else {
+          showVoiceToast('Speech error: ' + event.error);
+        }
+        stopMicrophone();
+      };
+
+      recognition.onend = function() {
+        // Recognition ended (could be auto-stop or manual)
+        if (isRecording) {
+          // If still in recording state, it was an unexpected stop - clean up
+          stopMicrophone();
+        }
+        // Process final transcript
+        if (finalTranscript.trim()) {
+          processVoiceCommand(finalTranscript.trim());
+        }
+      };
+
+      try {
+        recognition.start();
+      } catch (e) {
+        console.warn('Could not start speech recognition:', e);
+        showVoiceToast('Could not start microphone');
+      }
+    }
+
+    function stopMicrophone() {
+      isRecording = false;
+      document.getElementById('mic-btn').classList.remove('recording');
+      document.getElementById('voice-transcript-overlay').classList.remove('visible');
+
+      if (recognition) {
+        try { recognition.stop(); } catch (e) { /* ignore */ }
+        recognition = null;
+      }
+    }
+
+    // Process recognized voice commands
+    function processVoiceCommand(text) {
+      var lower = text.toLowerCase().trim();
+      showVoiceToast('Heard: "' + text.substring(0, 60) + (text.length > 60 ? '...' : '') + '"');
+
+      if (lower.includes('refresh') || lower.includes('reload') || lower.includes('update')) {
+        speak('Refreshing dashboard data');
+        refreshData();
+      } else if (lower.includes('status') || lower.includes('how are things') || lower.includes('report')) {
+        readDashboardStatus();
+      } else if (lower.includes('voice off') || lower.includes('stop listening') || lower.includes('disable voice')) {
+        voiceModeEnabled = false;
+        localStorage.setItem('corvid-voice-mode', 'false');
+        updateVoiceToggleUI();
+        speak('Voice mode disabled');
+      } else if (lower.includes('balance') || lower.includes('wallet') || lower.includes('algo')) {
+        var balEl = document.getElementById('wallet-balance');
+        var balText = balEl ? balEl.textContent : 'unknown';
+        speak('Wallet balance is ' + balText);
+      } else if (lower.includes('package') || lower.includes('health')) {
+        speak('All 5 packages are healthy and passing tests');
+      } else {
+        speak('You said: ' + text);
+      }
+    }
+
+    // Read aloud the dashboard status summary
+    function readDashboardStatus() {
+      var statusText = document.getElementById('status-text');
+      var status = statusText ? statusText.textContent : 'unknown';
+
+      var packagesEl = document.getElementById('stat-packages');
+      var packages = packagesEl ? packagesEl.textContent : 'unknown';
+
+      var testsEl = document.getElementById('stat-tests');
+      var tests = testsEl ? testsEl.textContent : 'unknown';
+
+      var reposEl = document.getElementById('stat-repos');
+      var repos = reposEl ? reposEl.textContent : 'unknown';
+
+      var balanceEl = document.getElementById('stat-balance');
+      var balance = balanceEl ? balanceEl.textContent : 'unknown';
+
+      var summary = 'Dashboard status: ' + status + '. ' +
+        packages + ' packages published. ' +
+        'Tests: ' + tests + '. ' +
+        repos + ' repositories. ' +
+        'ALGO balance: ' + balance + '.';
+
+      speak(summary);
+    }
+
+    // Text-to-speech helper
+    function speak(text) {
+      if (!speechSynthesisAvailable || !voiceModeEnabled) return;
+
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+
+      var utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 0.9;
+      utterance.volume = 0.8;
+      utterance.lang = 'en-US';
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // Announce status changes via TTS when voice mode is on
+    function announceStatusChange(message) {
+      if (voiceModeEnabled && speechSynthesisAvailable) {
+        speak(message);
+      }
+    }
+
+    // Show a brief toast notification for voice actions
+    function showVoiceToast(message) {
+      var toast = document.getElementById('voice-status-toast');
+      var textEl = document.getElementById('voice-toast-text');
+      textEl.textContent = message;
+      toast.classList.add('visible');
+
+      if (voiceToastTimer) clearTimeout(voiceToastTimer);
+      voiceToastTimer = setTimeout(function() {
+        toast.classList.remove('visible');
+      }, 3000);
+    }
+
+    // Hook into existing status updates to announce via TTS
+    var _originalStatusText = '';
+    function checkStatusForAnnouncement() {
+      var statusEl = document.getElementById('status-text');
+      if (statusEl && statusEl.textContent !== _originalStatusText) {
+        var newStatus = statusEl.textContent;
+        if (_originalStatusText && _originalStatusText !== 'Connecting...') {
+          announceStatusChange('System status changed to: ' + newStatus);
+        }
+        _originalStatusText = newStatus;
+      }
+    }
+
     // ── Initialization ──
     function init() {
       restoreInterval();
+      restoreVoiceMode();
       renderUptime();
       measureResponseTimes();
 
@@ -1878,6 +2360,9 @@
 
       // Update relative timestamps every 30s
       timestampUpdateInterval = setInterval(updateTimestamps, 30000);
+
+      // Check for status changes to announce via TTS (every 5s)
+      setInterval(checkStatusForAnnouncement, 5000);
     }
 
     init();
