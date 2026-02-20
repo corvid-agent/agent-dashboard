@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/preview.png" alt="agent-dashboard preview" width="100%"></p>
+
 # Agent Dashboard
 
 Live operational dashboard monitoring corvid-agent packages, CI status, GitHub activity, Algorand wallet, and network health.
